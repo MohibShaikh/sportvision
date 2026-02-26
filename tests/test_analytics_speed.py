@@ -1,6 +1,7 @@
 import numpy as np
-from sportvision.analytics.speed import SpeedEstimator
+
 from sportvision.analytics.distance import DistanceCalculator
+from sportvision.analytics.speed import SpeedEstimator
 
 
 class TestSpeedEstimator:

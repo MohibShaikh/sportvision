@@ -13,7 +13,9 @@ class FieldHomography:
     _matrix: np.ndarray | None = field(default=None, init=False, repr=False)
 
     @classmethod
-    def soccer(cls, field_length: float = 105, field_width: float = 68) -> FieldHomography:
+    def soccer(
+        cls, field_length: float = 105, field_width: float = 68
+    ) -> FieldHomography:
         return cls(field_length=field_length, field_width=field_width)
 
     @classmethod

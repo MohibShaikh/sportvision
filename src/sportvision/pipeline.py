@@ -4,8 +4,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from sportvision.annotators import StatsOverlayAnnotator, TeamColorAnnotator
 from sportvision.analytics.possession import PossessionTracker
+from sportvision.annotators import StatsOverlayAnnotator, TeamColorAnnotator
 from sportvision.detection import SportsDetector
 from sportvision.tracking import SportsTracker
 

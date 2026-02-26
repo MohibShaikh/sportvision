@@ -39,8 +39,13 @@ class StatsOverlayAnnotator:
             for team, pct in possession.items():
                 text = f"Team {team}: {pct:.0%}"
                 cv2.putText(
-                    frame, text, (10, y), cv2.FONT_HERSHEY_SIMPLEX,
-                    self.font_scale, (255, 255, 255), 2,
+                    frame,
+                    text,
+                    (10, y),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    self.font_scale,
+                    (255, 255, 255),
+                    2,
                 )
                 y += 30
         return frame

@@ -1,5 +1,10 @@
 import numpy as np
-from sportvision.annotators import TeamColorAnnotator, StatsOverlayAnnotator, TrailAnnotator
+
+from sportvision.annotators import (
+    StatsOverlayAnnotator,
+    TeamColorAnnotator,
+    TrailAnnotator,
+)
 
 
 class TestTeamColorAnnotator:

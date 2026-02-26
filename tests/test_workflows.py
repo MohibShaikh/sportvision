@@ -1,4 +1,4 @@
-from sportvision.workflows.blocks import TeamClassifierBlock, PossessionTrackerBlock
+from sportvision.workflows.blocks import PossessionTrackerBlock, TeamClassifierBlock
 
 
 class TestWorkflowBlocks:
