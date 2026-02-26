@@ -16,11 +16,11 @@ class SportsTracker:
 
     def _init_tracker(self) -> None:
         try:
-            from trackers import ByteTrack
+            from trackers import ByteTrackTracker
 
-            self._tracker = ByteTrack(
+            self._tracker = ByteTrackTracker(
                 track_activation_threshold=self.track_thresh,
-                minimum_matching_threshold=self.match_thresh,
+                minimum_iou_threshold=self.match_thresh,
             )
         except ImportError:
             self._tracker = None
@@ -41,7 +41,7 @@ class SportsTracker:
                     class_id=detections.get("class_id"),
                     confidence=detections.get("confidence"),
                 )
-                tracked = self._tracker.update_with_detections(sv_dets)
+                tracked = self._tracker.update(sv_dets)
                 return {
                     "xyxy": tracked.xyxy,
                     "class_id": tracked.class_id,

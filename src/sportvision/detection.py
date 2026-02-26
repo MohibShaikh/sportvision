@@ -26,12 +26,12 @@ class SportsDetector:
             if "rfdetr" in self.model:
                 from rfdetr import RFDETRBase, RFDETRLarge
 
-                self._model = RFDETRLarge() if "large" in self.model else RFDETRBase()
+                self._model = (
+                    RFDETRLarge() if "large" in self.model else RFDETRBase()
+                )
             else:
-                import supervision as sv
-
-                self._model = sv.get_model(self.model)
-        except (ImportError, AttributeError):
+                self._model = None
+        except ImportError:
             self._model = None
 
     def detect(self, frame: np.ndarray) -> dict[str, np.ndarray]:
@@ -46,17 +46,17 @@ class SportsDetector:
             )
             if not isinstance(detections, sv.Detections):
                 detections = sv.Detections.from_inference(detections)
-            mask = np.isin(detections.class_id, self._class_indices())
             return {
-                "xyxy": detections.xyxy[mask],
-                "class_id": detections.class_id[mask],
-                "confidence": detections.confidence[mask],
+                "xyxy": detections.xyxy,
+                "class_id": detections.class_id
+                if detections.class_id is not None
+                else np.zeros(len(detections.xyxy), dtype=int),
+                "confidence": detections.confidence
+                if detections.confidence is not None
+                else np.ones(len(detections.xyxy)),
             }
         except Exception:
             return self._empty_result()
-
-    def _class_indices(self) -> list[int]:
-        return [CLASS_NAMES.index(c) for c in self.classes if c in CLASS_NAMES]
 
     @staticmethod
     def _empty_result() -> dict[str, np.ndarray]:
