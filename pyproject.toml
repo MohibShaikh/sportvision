@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-inference = ["inference>=0.30", "rf-detr>=1.0"]
+inference = ["inference>=0.30", "rfdetr>=1.0"]
 dev = ["pytest>=7.0", "ruff>=0.4", "pytest-cov"]
 all = ["sportvision[inference,dev]"]
 
