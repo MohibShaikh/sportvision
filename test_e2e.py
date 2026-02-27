@@ -52,7 +52,7 @@ def main():
 
     while True:
         ret, frame = cap.read()
-        if not ret:
+        if not ret or frame_num >= 150:
             break
 
         # Detect
