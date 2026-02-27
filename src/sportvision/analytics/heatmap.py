@@ -28,14 +28,14 @@ class HeatmapGenerator:
     def render(self, team: int = 0) -> np.ndarray:
         w, h = self.resolution
         grid = self._get_grid(team)
-        if grid.max() > 0:
-            normalized = (grid / grid.max() * 255).astype(np.uint8)
-        else:
-            normalized = np.zeros((h, w), dtype=np.uint8)
-        blurred = cv2.GaussianBlur(normalized, (0, 0), sigmaX=2, sigmaY=2)
-        colored = cv2.applyColorMap(blurred, cv2.COLORMAP_JET)
-        mask = blurred == 0
-        colored[mask] = 0
+        if grid.max() == 0:
+            return np.zeros((h, w, 3), dtype=np.uint8)
+        # Blur on raw floats first, then normalize
+        blurred = cv2.GaussianBlur(grid, (0, 0), sigmaX=3, sigmaY=3)
+        normalized = (blurred / blurred.max() * 255).astype(np.uint8)
+        colored = cv2.applyColorMap(normalized, cv2.COLORMAP_JET)
+        # Black out areas with no data
+        colored[normalized == 0] = 0
         return colored
 
     def reset(self) -> None:
