@@ -4,3 +4,5 @@ dist/
 .venv/
 .ruff_cache/
 *.pyc
+rf-detr-base.pth
+test_data/

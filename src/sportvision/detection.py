@@ -7,6 +7,11 @@ import numpy as np
 
 CLASS_NAMES = ["player", "ball", "referee", "goalkeeper"]
 
+# COCO class IDs that map to sports classes
+# person(0) -> player(0), sports ball(37) -> ball(1)
+COCO_TO_SPORTS = {0: 0, 37: 1}
+COCO_SPORTS_IDS = set(COCO_TO_SPORTS.keys())
+
 
 @dataclass
 class SportsDetector:
@@ -25,9 +30,19 @@ class SportsDetector:
         try:
             if "rfdetr" in self.model:
                 from rfdetr import RFDETRBase, RFDETRLarge
+                import torch
+
+                device = "cuda" if torch.cuda.is_available() else "cpu"
+                try:
+                    if device == "cuda":
+                        torch.zeros(1, device="cuda")
+                except Exception:
+                    device = "cpu"
 
                 self._model = (
-                    RFDETRLarge() if "large" in self.model else RFDETRBase()
+                    RFDETRLarge(device=device)
+                    if "large" in self.model
+                    else RFDETRBase(device=device)
                 )
             else:
                 self._model = None
@@ -46,14 +61,27 @@ class SportsDetector:
             )
             if not isinstance(detections, sv.Detections):
                 detections = sv.Detections.from_inference(detections)
-            return {
-                "xyxy": detections.xyxy,
-                "class_id": detections.class_id
+
+            # Filter to sports-relevant COCO classes and remap IDs
+            coco_ids = (
+                detections.class_id
                 if detections.class_id is not None
-                else np.zeros(len(detections.xyxy), dtype=int),
-                "confidence": detections.confidence
+                else np.zeros(len(detections.xyxy), dtype=int)
+            )
+            mask = np.isin(coco_ids, list(COCO_SPORTS_IDS))
+            sports_ids = np.array(
+                [COCO_TO_SPORTS.get(int(c), 0) for c in coco_ids[mask]],
+                dtype=int,
+            )
+            conf = (
+                detections.confidence[mask]
                 if detections.confidence is not None
-                else np.ones(len(detections.xyxy)),
+                else np.ones(mask.sum())
+            )
+            return {
+                "xyxy": detections.xyxy[mask],
+                "class_id": sports_ids,
+                "confidence": conf,
             }
         except Exception:
             return self._empty_result()
