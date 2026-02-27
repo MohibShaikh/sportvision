@@ -89,7 +89,7 @@ def main():
                 if len(player_pos) > 1:
                     team_ids[len(player_pos)//2:] = 1
                 possession.update(player_pos, team_ids, ball_pos)
-                heatmap.update(player_pos / np.array([[w/105, h/68]]), team_ids)
+                heatmap.update(player_pos * np.array([[105/w, 68/h]]), team_ids)
 
         # Annotate
         annotated = frame.copy()
