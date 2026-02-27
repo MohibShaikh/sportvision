@@ -61,7 +61,8 @@ class TrailAnnotator:
     def _color_for_id(tid: int) -> tuple[int, int, int]:
         """Deterministic distinct color per tracker ID."""
         rng = np.random.RandomState(tid * 7 + 13)
-        return (int(rng.randint(80, 255)), int(rng.randint(80, 255)), int(rng.randint(80, 255)))
+        r, g, b = rng.randint(80, 255, size=3)
+        return (int(r), int(g), int(b))
 
     def annotate(
         self, frame: np.ndarray, tracks: dict[int, list[tuple[float, float]]]

@@ -29,8 +29,8 @@ class SportsDetector:
             return
         try:
             if "rfdetr" in self.model:
-                from rfdetr import RFDETRBase, RFDETRLarge
                 import torch
+                from rfdetr import RFDETRBase, RFDETRLarge
 
                 device = "cuda" if torch.cuda.is_available() else "cpu"
                 try:
