@@ -1,10 +1,10 @@
 # SportVision
 
-Real-time sports analytics toolkit built on the Roboflow ecosystem. Detects players and ball via RF-DETR, tracks with ByteTrack, classifies teams by jersey color, and computes possession, speed, distance, and heatmaps.
+Real-time sports analytics toolkit built on the Roboflow ecosystem. Detects players and ball with any COCO-compatible model (YOLOv8, RF-DETR, etc.), tracks with ByteTrack, classifies teams by jersey color, and computes possession, speed, distance, and heatmaps.
 
 ## Features
 
-- **Detection** — RF-DETR (base/large) with COCO→sports class mapping
+- **Detection** — Works with any COCO-compatible detector (YOLOv8, RF-DETR, etc.)
 - **Tracking** — ByteTrack via supervision with fallback sequential IDs
 - **Team Classification** — KMeans on HSV jersey histograms
 - **Homography** — Pixel→field coordinate mapping via `cv2.findHomography`
@@ -127,7 +127,7 @@ print(result["detections"].data["distance"])  # cumulative distance per tracker
 
 ```
 src/sportvision/
-├── detection.py      # SportsDetector — wraps RF-DETR, maps COCO→sports classes
+├── detection.py      # SportsDetector — wraps COCO detectors, maps to sports classes
 ├── tracking.py       # SportsTracker — ByteTrack via supervision
 ├── teams.py          # TeamClassifier — KMeans on HSV jersey histograms
 ├── homography.py     # FieldHomography — pixel→field coords
@@ -166,7 +166,8 @@ src/sportvision/
 | scikit-learn | KMeans for team classification | Yes |
 | pydantic | Workflow block manifests | Yes |
 | inference | Roboflow Workflows engine | Optional (`[workflows]`) |
-| rfdetr | Detection model | Optional (`[inference]`) |
+| ultralytics | YOLOv8 detection | Optional |
+| rfdetr | RF-DETR detection | Optional (`[inference]`) |
 
 ## Development
 

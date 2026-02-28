@@ -40,6 +40,9 @@ workflows = ["inference>=0.30"]
 dev = ["pytest>=7.0", "ruff>=0.4", "pytest-cov"]
 all = ["sportvision[inference,workflows,dev]"]
 
+[project.entry-points."roboflow.workflows"]
+sportvision = "sportvision.workflows"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/sportvision"]
 

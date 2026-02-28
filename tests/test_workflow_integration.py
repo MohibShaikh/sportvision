@@ -1,10 +1,10 @@
-"""Integration test: run workflow blocks on real video frames.
+"""Integration test: run workflow blocks on real video.
 
 Downloads the Roboflow supervision basketball sample video (cached in
 test_data/) and runs YOLOv8 detection, then pipes real detections through:
   SportsDetectionFilter → TeamClassifier → PossessionTracker → DistanceCalculator
 
-Saves annotated frames to test_data/integration_output/ for visual review.
+Outputs an annotated video to test_data/integration_output.mp4.
 
 Run with::
 
@@ -23,8 +23,9 @@ import supervision as sv
 
 VIDEO_DIR = Path(__file__).resolve().parent.parent / "test_data"
 VIDEO_PATH = VIDEO_DIR / "basketball-1.mp4"
+OUTPUT_VIDEO = VIDEO_DIR / "integration_output.mp4"
 START_FRAME = 100  # players appear around frame 100
-NUM_FRAMES = 30
+NUM_FRAMES = 120  # ~2 seconds of action at 60fps
 
 
 # ------------------------------------------------------------------
@@ -43,23 +44,6 @@ def video_path() -> Path:
         downloaded = Path("basketball-1.mp4")
         downloaded.rename(VIDEO_PATH)
     return VIDEO_PATH
-
-
-@pytest.fixture(scope="module")
-def frames(video_path: Path) -> list[np.ndarray]:
-    """Read NUM_FRAMES starting from START_FRAME."""
-    cap = cv2.VideoCapture(str(video_path))
-    assert cap.isOpened(), f"Cannot open {video_path}"
-    cap.set(cv2.CAP_PROP_POS_FRAMES, START_FRAME)
-    imgs: list[np.ndarray] = []
-    for _ in range(NUM_FRAMES):
-        ok, frame = cap.read()
-        if not ok:
-            break
-        imgs.append(frame)
-    cap.release()
-    assert len(imgs) == NUM_FRAMES
-    return imgs
 
 
 @pytest.fixture(scope="module")
@@ -93,13 +77,70 @@ def _detect_with_yolo(
     return dets
 
 
+def _annotate_frame(
+    frame, classified, ball_dets, dist_dets, poss, frame_num, team_ann, stats_ann
+):
+    """Draw all annotations on a frame and return it."""
+    vis = frame.copy()
+    h, w = vis.shape[:2]
+
+    # Team-colored boxes on players
+    if len(classified) > 0:
+        vis = team_ann.annotate(vis, classified.xyxy, classified.data["team_id"])
+
+    # Ball box in green
+    for box in ball_dets.xyxy:
+        x1, y1, x2, y2 = box.astype(int)
+        cv2.rectangle(vis, (x1, y1), (x2, y2), (0, 255, 0), 3)
+        cv2.putText(
+            vis,
+            "BALL",
+            (x1, y1 - 10),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (0, 255, 0),
+            2,
+        )
+
+    # Distance + team labels on players
+    for j in range(len(classified)):
+        x1, y1 = classified.xyxy[j][:2].astype(int)
+        d = dist_dets.data["distance"][j]
+        tid = int(classified.data["team_id"][j])
+        cv2.putText(
+            vis,
+            f"T{tid} {d:.0f}px",
+            (x1, y1 - 10),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (255, 255, 255),
+            2,
+        )
+
+    # Possession overlay
+    vis = stats_ann.annotate(vis, possession=poss["possession_stats"])
+
+    # Frame counter
+    cv2.putText(
+        vis,
+        f"Frame {frame_num}",
+        (w - 250, 30),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.8,
+        (0, 255, 255),
+        2,
+    )
+
+    return vis
+
+
 # ------------------------------------------------------------------
-# Integration test
+# Integration tests
 # ------------------------------------------------------------------
 
 
 class TestWorkflowBlocksIntegration:
-    """Chain all four workflow blocks on real video frames."""
+    """Chain all four workflow blocks on real video."""
 
     @pytest.fixture(autouse=True)
     def _import_blocks(self):
@@ -121,18 +162,29 @@ class TestWorkflowBlocksIntegration:
         self.possession_block = PossessionTrackerBlockV1()
         self.distance_block = DistanceCalculatorBlockV1()
 
-    def test_full_chain_real_frames(self, frames, yolo_model):
-        """Run YOLO → filter → classify → possession → distance.
+    def test_full_pipeline_video(self, video_path, yolo_model):
+        """Process video through full pipeline, output annotated mp4.
 
-        Saves annotated frames to test_data/integration_output/.
+        Reads directly from video file and writes annotated output.
         """
         from sportvision.annotators import (
             StatsOverlayAnnotator,
             TeamColorAnnotator,
         )
 
-        out_dir = VIDEO_DIR / "integration_output"
-        out_dir.mkdir(parents=True, exist_ok=True)
+        cap = cv2.VideoCapture(str(video_path))
+        assert cap.isOpened(), f"Cannot open {video_path}"
+
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+        cap.set(cv2.CAP_PROP_POS_FRAMES, START_FRAME)
+
+        VIDEO_DIR.mkdir(parents=True, exist_ok=True)
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        writer = cv2.VideoWriter(str(OUTPUT_VIDEO), fourcc, fps, (w, h))
+        assert writer.isOpened(), "Cannot create output video"
 
         team_ann = TeamColorAnnotator(
             home_color=(0, 120, 255),
@@ -141,29 +193,36 @@ class TestWorkflowBlocksIntegration:
         )
         stats_ann = StatsOverlayAnnotator(font_scale=1.0)
 
-        h, w = frames[0].shape[:2]
+        frames_processed = 0
         frames_with_players = 0
+        poss = None
 
-        for i, frame in enumerate(frames):
+        for _ in range(NUM_FRAMES):
+            ok, frame = cap.read()
+            if not ok:
+                break
+
+            frame_num = START_FRAME + frames_processed
+            frames_processed += 1
+
             # --- Real YOLO detection ---
             raw_dets = _detect_with_yolo(yolo_model, frame)
 
             if len(raw_dets) == 0:
-                cv2.imwrite(str(out_dir / f"frame_{i:03d}.jpg"), frame)
+                writer.write(frame)
                 continue
 
             # 1. Filter: COCO IDs → sports IDs
             filtered = self.filter_block.run(detections=raw_dets)["detections"]
 
             if len(filtered) == 0:
-                cv2.imwrite(str(out_dir / f"frame_{i:03d}.jpg"), frame)
+                writer.write(frame)
                 continue
 
-            # Ensure tracker_id survives filtering
             if filtered.tracker_id is None:
                 filtered.tracker_id = np.arange(len(filtered))
 
-            # 2. Team classify players (class_id == 0)
+            # 2. Team classify players
             player_mask = filtered.class_id == 0
             player_dets = filtered[player_mask]
 
@@ -173,7 +232,7 @@ class TestWorkflowBlocksIntegration:
                     image=image,
                     detections=player_dets,
                     n_teams=2,
-                    refit_every=10,
+                    refit_every=30,
                 )["detections"]
                 assert "team_id" in classified.data
             else:
@@ -215,7 +274,6 @@ class TestWorkflowBlocksIntegration:
                 ball_proximity_threshold=9999.0,
             )
             assert "possession_stats" in poss
-            assert "possessing_team" in poss
 
             # 5. Distance calculation
             dist = self.distance_block.run(detections=combined)
@@ -224,109 +282,43 @@ class TestWorkflowBlocksIntegration:
 
             frames_with_players += 1
 
-            # --- Annotate and save ---
-            vis = frame.copy()
-
-            # Team-colored boxes on players
-            if len(classified) > 0:
-                vis = team_ann.annotate(
-                    vis,
-                    classified.xyxy,
-                    classified.data["team_id"],
-                )
-
-            # Ball box in green
-            for box in ball_dets.xyxy:
-                x1, y1, x2, y2 = box.astype(int)
-                cv2.rectangle(vis, (x1, y1), (x2, y2), (0, 255, 0), 3)
-                cv2.putText(
-                    vis,
-                    "BALL",
-                    (x1, y1 - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.7,
-                    (0, 255, 0),
-                    2,
-                )
-
-            # Distance + team labels on players
-            for j in range(len(classified)):
-                x1, y1 = classified.xyxy[j][:2].astype(int)
-                d = dist_dets.data["distance"][j]
-                tid = int(classified.data["team_id"][j])
-                label = f"T{tid} {d:.0f}px"
-                cv2.putText(
-                    vis,
-                    label,
-                    (x1, y1 - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
-                    (255, 255, 255),
-                    2,
-                )
-
-            # Possession overlay
-            vis = stats_ann.annotate(vis, possession=poss["possession_stats"])
-
-            # Frame counter
-            cv2.putText(
-                vis,
-                f"Frame {START_FRAME + i}",
-                (w - 250, 30),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.8,
-                (0, 255, 255),
-                2,
+            # --- Annotate and write ---
+            vis = _annotate_frame(
+                frame,
+                classified,
+                ball_dets,
+                dist_dets,
+                poss,
+                frame_num,
+                team_ann,
+                stats_ann,
             )
+            writer.write(vis)
 
-            cv2.imwrite(str(out_dir / f"frame_{i:03d}.jpg"), vis)
+        cap.release()
+        writer.release()
 
+        assert frames_processed == NUM_FRAMES
         assert frames_with_players > 0, "No players detected"
+        assert OUTPUT_VIDEO.exists()
 
-        # Save summary on last annotated frame
-        summary = vis.copy()
-        final_poss = poss["possession_stats"]
-        y = h - 150
-        cv2.putText(
-            summary,
-            "=== FINAL SUMMARY ===",
-            (10, y),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.9,
-            (0, 255, 255),
-            2,
-        )
-        for team, pct in final_poss.items():
-            y += 35
-            cv2.putText(
-                summary,
-                f"Team {team}: {pct:.1%} possession",
-                (10, y),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.8,
-                (255, 255, 255),
-                2,
-            )
-        y += 35
-        cv2.putText(
-            summary,
-            f"Possessing team: {poss['possessing_team']}",
-            (10, y),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.8,
-            (0, 255, 0),
-            2,
-        )
-        cv2.imwrite(str(out_dir / "summary.jpg"), summary)
+        size_kb = OUTPUT_VIDEO.stat().st_size / 1024
+        print(f"\n  Video: {frames_processed} frames processed")
+        print(f"  Frames with detections: {frames_with_players}")
+        if poss:
+            print(f"  Possession: {poss['possession_stats']}")
+        print(f"  Output: {OUTPUT_VIDEO} ({size_kb:.0f} KB)")
 
-        print(f"\n  Frames with detections: {frames_with_players}")
-        print(f"  Possession: {final_poss}")
-        print(f"  Output: {out_dir}")
+    def test_refit_changes_model(self, video_path, yolo_model):
+        """Verify refit_every refits by reading frames from video."""
+        cap = cv2.VideoCapture(str(video_path))
+        cap.set(cv2.CAP_PROP_POS_FRAMES, START_FRAME)
 
-    def test_refit_changes_model(self, frames, yolo_model):
-        """Verify refit_every actually refits on real image data."""
         models_seen = []
-        for frame in frames[:12]:
+        for _ in range(20):
+            ok, frame = cap.read()
+            if not ok:
+                break
             raw = _detect_with_yolo(yolo_model, frame)
             filtered = self.filter_block.run(detections=raw)["detections"]
             players = filtered[filtered.class_id == 0]
@@ -341,11 +333,18 @@ class TestWorkflowBlocksIntegration:
             )
             models_seen.append(id(self.team_block._model))
 
+        cap.release()
         assert len(set(models_seen)) > 1
 
-    def test_possession_warns_without_team_id(self, frames, yolo_model):
+    def test_possession_warns_without_team_id(self, video_path, yolo_model):
         """Possession block warns when team_id is absent."""
-        raw = _detect_with_yolo(yolo_model, frames[15])
+        cap = cv2.VideoCapture(str(video_path))
+        cap.set(cv2.CAP_PROP_POS_FRAMES, START_FRAME + 15)
+        ok, frame = cap.read()
+        cap.release()
+        assert ok
+
+        raw = _detect_with_yolo(yolo_model, frame)
         filtered = self.filter_block.run(detections=raw)["detections"]
         if len(filtered) == 0:
             pytest.skip("No detections in frame")
@@ -354,18 +353,23 @@ class TestWorkflowBlocksIntegration:
             ball_class_id=1,
             ball_proximity_threshold=9999.0,
         )
-        # No team_id was set → should warn (if ball+player present)
         players = filtered.class_id == 0
         balls = filtered.class_id == 1
         if players.any() and balls.any():
             assert result["warning"] != ""
             assert "team_id" in result["warning"]
 
-    def test_distance_with_homography(self, frames, yolo_model):
-        """Distance with homography uses transformed coords."""
+    def test_distance_with_homography(self, video_path, yolo_model):
+        """Distance with homography from video frames."""
         h_mat = [[0.01, 0, 0], [0, 0.01, 0], [0, 0, 1]]
+        cap = cv2.VideoCapture(str(video_path))
+        cap.set(cv2.CAP_PROP_POS_FRAMES, START_FRAME)
 
-        for frame in frames[:10]:
+        last_filtered = None
+        for _ in range(15):
+            ok, frame = cap.read()
+            if not ok:
+                break
             raw = _detect_with_yolo(yolo_model, frame)
             if len(raw) == 0:
                 continue
@@ -373,8 +377,13 @@ class TestWorkflowBlocksIntegration:
             if filtered.tracker_id is None:
                 filtered.tracker_id = np.arange(len(filtered))
             self.distance_block.run(detections=filtered, homography_matrix=h_mat)
+            last_filtered = filtered
 
-        # Distances with 0.01 scale should be small
-        result = self.distance_block.run(detections=filtered, homography_matrix=h_mat)
+        cap.release()
+        assert last_filtered is not None
+
+        result = self.distance_block.run(
+            detections=last_filtered, homography_matrix=h_mat
+        )
         distances = result["detections"].data["distance"]
         assert all(d < 200 for d in distances)

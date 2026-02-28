@@ -16,7 +16,7 @@ try:
         WorkflowImageData,
     )
     from inference.core.workflows.execution_engine.entities.types import (  # noqa: F401
-        BATCH_OF_IMAGES_KIND,
+        IMAGE_KIND,
         OBJECT_DETECTION_PREDICTION_KIND,
         StepOutputImageSelector,
         StepOutputSelector,
@@ -46,7 +46,7 @@ except ImportError:
         numpy_image: Any = None
 
     # Sentinel kind values
-    BATCH_OF_IMAGES_KIND: Any = "batch_of_images"
+    IMAGE_KIND: Any = "batch_of_images"
     OBJECT_DETECTION_PREDICTION_KIND: Any = "object_detection_prediction"
 
     # Stand-in selector types — must support | operator and callable syntax
