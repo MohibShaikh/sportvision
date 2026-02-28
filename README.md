@@ -37,9 +37,9 @@ This registers 4 blocks you can use in any Roboflow Workflow:
 
 | Block | Type Identifier | Description |
 |-------|----------------|-------------|
-| Team Classifier | `sportvision/team_classifier@v1` | Clusters players into teams by jersey color |
-| Possession Tracker | `sportvision/possession_tracker@v1` | Tracks ball possession per team over time |
-| Distance Calculator | `sportvision/distance_calculator@v1` | Cumulative pixel distance per tracked player |
+| Team Classifier | `sportvision/team_classifier@v1` | Clusters players into teams by jersey color. `refit_every=N` to periodically refit KMeans. |
+| Possession Tracker | `sportvision/possession_tracker@v1` | Tracks ball possession per team over time. Warns when `team_id` is missing. |
+| Distance Calculator | `sportvision/distance_calculator@v1` | Cumulative distance per tracked player. Supports `homography_matrix` for field-unit distances. |
 | Sports Detection Filter | `sportvision/sports_detection_filter@v1` | Filters COCO detections to sports classes |
 
 ### Example: Using blocks directly in Python
@@ -63,7 +63,8 @@ detections = result["detections"]  # now player=0, ball=1
 # --- Classify players into teams ---
 team_block = TeamClassifierBlockV1()
 # `image` must have a .numpy_image attribute (or use WorkflowImageData)
-result = team_block.run(image=image, detections=detections, n_teams=2)
+# refit_every=10 refits KMeans every 10 frames (0 = fit once, default)
+result = team_block.run(image=image, detections=detections, n_teams=2, refit_every=10)
 detections = result["detections"]  # detections.data["team_id"] is now set
 
 # --- Track possession ---
@@ -75,11 +76,13 @@ result = possession_block.run(
 )
 print(result["possession_stats"])   # {0: 0.6, 1: 0.4}
 print(result["possessing_team"])    # 0
+print(result["warning"])            # "" or warning if team_id missing
 
 # --- Compute distances ---
 distance_block = DistanceCalculatorBlockV1()
-result = distance_block.run(detections=detections)
-print(result["detections"].data["distance"])  # cumulative px per tracker
+# Optional: pass a 3x3 homography matrix for field-unit distances (e.g. meters)
+result = distance_block.run(detections=detections, homography_matrix=[[0.01,0,0],[0,0.01,0],[0,0,1]])
+print(result["detections"].data["distance"])  # cumulative distance per tracker
 ```
 
 ### Example: Workflow JSON definition
@@ -97,7 +100,8 @@ print(result["detections"].data["distance"])  # cumulative px per tracker
       "name": "teams",
       "image": "$inputs.image",
       "detections": "$steps.filter.detections",
-      "n_teams": 2
+      "n_teams": 2,
+      "refit_every": 10
     },
     {
       "type": "sportvision/possession_tracker@v1",
@@ -108,7 +112,8 @@ print(result["detections"].data["distance"])  # cumulative px per tracker
     {
       "type": "sportvision/distance_calculator@v1",
       "name": "distance",
-      "detections": "$steps.teams.detections"
+      "detections": "$steps.teams.detections",
+      "homography_matrix": [[0.01,0,0],[0,0.01,0],[0,0,1]]
     }
   ]
 }
