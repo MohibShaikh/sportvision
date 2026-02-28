@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Literal
 
 import numpy as np
@@ -55,11 +56,15 @@ class PossessionTrackerManifest(WorkflowBlockManifest):
         return [
             OutputDefinition(name="possession_stats"),
             OutputDefinition(name="possessing_team"),
+            OutputDefinition(name="warning"),
         ]
 
     @classmethod
     def get_execution_engine_compatibility(cls) -> str | None:
         return ">=1.0.0,<2.0.0"
+
+
+logger = logging.getLogger(__name__)
 
 
 class PossessionTrackerBlockV1(WorkflowBlock):
@@ -80,6 +85,7 @@ class PossessionTrackerBlockV1(WorkflowBlock):
             return {
                 "possession_stats": {},
                 "possessing_team": -1,
+                "warning": "",
             }
 
         class_ids = detections.class_id
@@ -93,6 +99,7 @@ class PossessionTrackerBlockV1(WorkflowBlock):
             return {
                 "possession_stats": stats,
                 "possessing_team": possessing,
+                "warning": "",
             }
 
         # Ball center (use first ball detection)
@@ -115,12 +122,16 @@ class PossessionTrackerBlockV1(WorkflowBlock):
         distances = np.linalg.norm(player_centers - ball_center, axis=1)
         nearest_local = int(np.argmin(distances))
 
+        warning = ""
         if distances[nearest_local] <= ball_proximity_threshold:
             nearest_global = player_indices[nearest_local]
             team_ids = detections.data.get("team_id")
             if team_ids is not None:
                 team = int(team_ids[nearest_global])
                 self._counts[team] = self._counts.get(team, 0) + 1
+            else:
+                warning = "team_id missing from detections; possession not updated"
+                logger.warning(warning)
 
         total = sum(self._counts.values())
         stats = {k: v / total for k, v in self._counts.items()} if total > 0 else {}
@@ -129,4 +140,5 @@ class PossessionTrackerBlockV1(WorkflowBlock):
         return {
             "possession_stats": stats,
             "possessing_team": possessing,
+            "warning": warning,
         }

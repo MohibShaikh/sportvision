@@ -100,6 +100,30 @@ class TestTeamClassifierBlock:
         block.run(image=image, detections=dets2, n_teams=2)
         assert block._model is model_ref
 
+    def test_refit_every_triggers_refit(self):
+        block = self.BlockClass()
+        image = _make_workflow_image()
+        # Run 3 frames with refit_every=2; model should change on frame 2
+        dets = _make_detections(n=6)
+        block.run(image=image, detections=dets, n_teams=2, refit_every=2)
+        model_after_1 = block._model
+        dets2 = _make_detections(n=6)
+        block.run(image=image, detections=dets2, n_teams=2, refit_every=2)
+        model_after_2 = block._model
+        # Frame 2 triggers refit (frame_count=2, 2%2==0)
+        assert model_after_2 is not model_after_1
+
+    def test_refit_every_zero_no_refit(self):
+        block = self.BlockClass()
+        image = _make_workflow_image()
+        dets = _make_detections(n=6)
+        block.run(image=image, detections=dets, n_teams=2, refit_every=0)
+        model_ref = block._model
+        for _ in range(5):
+            dets2 = _make_detections(n=6)
+            block.run(image=image, detections=dets2, n_teams=2, refit_every=0)
+        assert block._model is model_ref
+
 
 # ---------------------------------------------------------------------------
 # Possession Tracker
@@ -146,6 +170,19 @@ class TestPossessionTrackerBlock:
         dets = _make_detections(n=4, class_ids=[0, 0, 0, 0])
         result = block.run(detections=dets)
         assert result["possessing_team"] == -1
+
+    def test_possession_warns_no_team_id(self):
+        block = self.BlockClass()
+        # Players + ball, but no team_id assigned
+        class_ids = [0, 0, 0, 0, 1]
+        dets = _make_detections(n=5, class_ids=class_ids, with_team=False)
+        result = block.run(
+            detections=dets,
+            ball_class_id=1,
+            ball_proximity_threshold=9999.0,
+        )
+        assert result["warning"] != ""
+        assert "team_id" in result["warning"]
 
     def test_accumulates_over_frames(self):
         block = self.BlockClass()
@@ -205,6 +242,26 @@ class TestDistanceCalculatorBlock:
         dets = sv.Detections.empty()
         result = block.run(detections=dets)
         assert len(result["detections"].data["distance"]) == 0
+
+    def test_distance_with_homography(self):
+        block = self.BlockClass()
+        # Identity-like homography scaled by 0.1 (pixels -> ~meters)
+        h_mat = [[0.1, 0, 0], [0, 0.1, 0], [0, 0, 1]]
+        dets1 = sv.Detections(
+            xyxy=np.array([[0, 0, 10, 10]], dtype=float),
+            class_id=np.array([0]),
+        )
+        dets1.tracker_id = np.array([0])
+        block.run(detections=dets1, homography_matrix=h_mat)
+
+        # Move 100px right -> 10 field-units with 0.1 scale
+        dets2 = sv.Detections(
+            xyxy=np.array([[100, 0, 110, 10]], dtype=float),
+            class_id=np.array([0]),
+        )
+        dets2.tracker_id = np.array([0])
+        result = block.run(detections=dets2, homography_matrix=h_mat)
+        assert result["detections"].data["distance"][0] == pytest.approx(10.0)
 
     def test_no_tracker_id(self):
         block = self.BlockClass()

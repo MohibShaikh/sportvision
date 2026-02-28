@@ -5,5 +5,6 @@ dist/
 .ruff_cache/
 *.pyc
 rf-detr-base.pth
+*.pt
 test_data/
 CLAUDE.md

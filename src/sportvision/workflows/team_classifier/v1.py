@@ -56,6 +56,11 @@ class TeamClassifierManifest(WorkflowBlockManifest):
         le=10,
         description="Number of teams to cluster into.",
     )
+    refit_every: int = Field(
+        default=0,
+        ge=0,
+        description="Refit KMeans every N frames. 0 means fit once and reuse.",
+    )
 
     @classmethod
     def describe_outputs(cls) -> list[OutputDefinition]:
@@ -75,6 +80,7 @@ class TeamClassifierBlockV1(WorkflowBlock):
     def __init__(self):
         self._model: KMeans | None = None
         self._n_teams: int = 2
+        self._frame_count: int = 0
 
     @classmethod
     def get_manifest(cls) -> type[WorkflowBlockManifest]:
@@ -114,16 +120,24 @@ class TeamClassifierBlockV1(WorkflowBlock):
         image: WorkflowImageData,
         detections: sv.Detections,
         n_teams: int = 2,
+        refit_every: int = 0,
     ) -> BlockResult:
         if len(detections) == 0:
             detections.data["team_id"] = np.array([], dtype=int)
             return {"detections": detections}
 
+        self._frame_count += 1
         img = image.numpy_image
         crops = self._get_crops(img, detections)
         features = np.array([self._extract_features(c) for c in crops])
 
-        if self._model is None or self._n_teams != n_teams:
+        needs_refit = (
+            refit_every > 0
+            and self._model is not None
+            and self._frame_count % refit_every == 0
+        )
+
+        if self._model is None or self._n_teams != n_teams or needs_refit:
             self._n_teams = n_teams
             self._model = KMeans(n_clusters=n_teams, random_state=0, n_init=10)
             self._model.fit(features)

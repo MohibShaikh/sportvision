@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+import cv2
 import numpy as np
 import supervision as sv
 from pydantic import ConfigDict, Field
@@ -40,6 +41,12 @@ class DistanceCalculatorManifest(WorkflowBlockManifest):
     ) = Field(
         description="Detections with tracker_id assigned.",
     )
+    homography_matrix: list[list[float]] | None = Field(
+        default=None,
+        description="Optional 3x3 homography matrix to convert pixel "
+        "coordinates to field coordinates. When provided, "
+        "distances are in field units (e.g. meters).",
+    )
 
     @classmethod
     def describe_outputs(cls) -> list[OutputDefinition]:
@@ -67,6 +74,7 @@ class DistanceCalculatorBlockV1(WorkflowBlock):
     def run(
         self,
         detections: sv.Detections,
+        homography_matrix: list[list[float]] | None = None,
     ) -> BlockResult:
         if len(detections) == 0:
             detections.data["distance"] = np.array([], dtype=float)
@@ -79,6 +87,13 @@ class DistanceCalculatorBlockV1(WorkflowBlock):
 
         centers_x = (detections.xyxy[:, 0] + detections.xyxy[:, 2]) / 2
         centers_y = (detections.xyxy[:, 1] + detections.xyxy[:, 3]) / 2
+
+        if homography_matrix is not None:
+            h_mat = np.array(homography_matrix, dtype=np.float64)
+            pts = np.column_stack([centers_x, centers_y]).reshape(-1, 1, 2)
+            transformed = cv2.perspectiveTransform(pts, h_mat).reshape(-1, 2)
+            centers_x = transformed[:, 0]
+            centers_y = transformed[:, 1]
 
         distances = np.zeros(len(detections))
         for i, tid in enumerate(tracker_ids):
