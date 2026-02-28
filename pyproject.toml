@@ -14,12 +14,14 @@ dependencies = [
     "opencv-python>=4.8",
     "supervision>=0.25",
     "scikit-learn>=1.3",
+    "pydantic>=2.0",
 ]
 
 [project.optional-dependencies]
 inference = ["inference>=0.30", "rfdetr>=1.0"]
+workflows = ["inference>=0.30"]
 dev = ["pytest>=7.0", "ruff>=0.4", "pytest-cov"]
-all = ["sportvision[inference,dev]"]
+all = ["sportvision[inference,workflows,dev]"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sportvision"]
