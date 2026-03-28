@@ -19,6 +19,7 @@ class SportsDetector:
     classes: list[str] = field(default_factory=lambda: list(CLASS_NAMES))
     confidence_threshold: float = 0.25
     _model: Any = field(default=None, init=False, repr=False)
+    _backend: str | None = field(default=None, init=False, repr=False)
 
     @property
     def model_id(self) -> str:
@@ -27,8 +28,8 @@ class SportsDetector:
     def _load_model(self) -> None:
         if self._model is not None:
             return
-        try:
-            if "rfdetr" in self.model:
+        if "rfdetr" in self.model:
+            try:
                 import torch
                 from rfdetr import RFDETRBase, RFDETRLarge
 
@@ -44,47 +45,72 @@ class SportsDetector:
                     if "large" in self.model
                     else RFDETRBase(device=device)
                 )
-            else:
-                self._model = None
+                self._backend = "rfdetr"
+                return
+            except ImportError:
+                pass
+        # YOLOv8 / ultralytics
+        try:
+            from ultralytics import YOLO
+
+            model_path = self.model if self.model.endswith(".pt") else "yolov8n.pt"
+            self._model = YOLO(model_path)
+            self._backend = "yolo"
         except ImportError:
             self._model = None
+            self._backend = None
 
     def detect(self, frame: np.ndarray) -> dict[str, np.ndarray]:
         self._load_model()
         if self._model is None:
             return self._empty_result()
         try:
-            import supervision as sv
-
-            detections: sv.Detections = self._model.predict(
-                frame, threshold=self.confidence_threshold
-            )
-            if not isinstance(detections, sv.Detections):
-                detections = sv.Detections.from_inference(detections)
-
-            # Filter to sports-relevant COCO classes and remap IDs
-            coco_ids = (
-                detections.class_id
-                if detections.class_id is not None
-                else np.zeros(len(detections.xyxy), dtype=int)
-            )
-            mask = np.isin(coco_ids, list(COCO_SPORTS_IDS))
-            sports_ids = np.array(
-                [COCO_TO_SPORTS.get(int(c), 0) for c in coco_ids[mask]],
-                dtype=int,
-            )
-            conf = (
-                detections.confidence[mask]
-                if detections.confidence is not None
-                else np.ones(mask.sum())
-            )
-            return {
-                "xyxy": detections.xyxy[mask],
-                "class_id": sports_ids,
-                "confidence": conf,
-            }
+            if self._backend == "yolo":
+                return self._detect_yolo(frame)
+            return self._detect_rfdetr(frame)
         except Exception:
             return self._empty_result()
+
+    def _detect_rfdetr(self, frame: np.ndarray) -> dict[str, np.ndarray]:
+        import supervision as sv
+
+        detections: sv.Detections = self._model.predict(
+            frame, threshold=self.confidence_threshold
+        )
+        if not isinstance(detections, sv.Detections):
+            detections = sv.Detections.from_inference(detections)
+        return self._filter_coco(
+            detections.xyxy, detections.class_id, detections.confidence
+        )
+
+    def _detect_yolo(self, frame: np.ndarray) -> dict[str, np.ndarray]:
+        results = self._model(frame, conf=self.confidence_threshold, verbose=False)
+        boxes = results[0].boxes
+        if len(boxes) == 0:
+            return self._empty_result()
+        xyxy = boxes.xyxy.cpu().numpy()
+        class_id = boxes.cls.cpu().numpy().astype(int)
+        confidence = boxes.conf.cpu().numpy().astype(np.float32)
+        return self._filter_coco(xyxy, class_id, confidence)
+
+    @staticmethod
+    def _filter_coco(
+        xyxy: np.ndarray,
+        class_id: np.ndarray | None,
+        confidence: np.ndarray | None,
+    ) -> dict[str, np.ndarray]:
+        coco_ids = class_id if class_id is not None else np.zeros(len(xyxy), dtype=int)
+        mask = np.isin(coco_ids, list(COCO_SPORTS_IDS))
+        sports_ids = np.array(
+            [COCO_TO_SPORTS.get(int(c), 0) for c in coco_ids[mask]],
+            dtype=int,
+        )
+        conf = confidence[mask] if confidence is not None else np.ones(mask.sum())
+        return {
+            "xyxy": xyxy[mask],
+            "class_id": sports_ids,
+            "confidence": conf,
+        }
 
     @staticmethod
     def _empty_result() -> dict[str, np.ndarray]:
