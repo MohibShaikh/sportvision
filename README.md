@@ -24,6 +24,14 @@ pipeline = SportVisionPipeline()
 result = pipeline.process_frame(frame)
 ```
 
+Detection needs a backend: `pip install "sportvision[inference]"` for RF-DETR, or install `ultralytics` for YOLO. Without one the pipeline returns empty detections and logs a warning once.
+
+Two knobs make the pipeline actually real-time on a GPU. `detect_every=N` runs detection every Nth frame and reuses the last result in between. `infer_size` caps the detector's input size (default 640) so the model sees fewer pixels; detection quality barely moves and boxes are mapped back to full frame coordinates.
+
+```python
+pipeline = SportVisionPipeline(device="auto", detect_every=3, infer_size=640)
+```
+
 ## Roboflow Workflows Plugin
 
 SportVision ships as a [Roboflow Workflows](https://inference.roboflow.com/workflows/about/) plugin. Install with inference and activate:

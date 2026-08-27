@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -13,6 +16,7 @@ class SportsTracker:
     match_thresh: float = 0.8
     _tracker: Any = field(default=None, init=False, repr=False)
     _next_id: int = field(default=0, init=False, repr=False)
+    _warned: bool = field(default=False, init=False, repr=False)
 
     def _init_tracker(self) -> None:
         try:
@@ -28,6 +32,12 @@ class SportsTracker:
     def update(self, detections: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
         if self._tracker is None:
             self._init_tracker()
+            if self._tracker is None and not self._warned:
+                logger.warning(
+                    "ByteTrack unavailable (install 'trackers'); falling back to "
+                    "per-frame sequential IDs, tracking will not persist across frames"
+                )
+                self._warned = True
 
         xyxy = detections["xyxy"]
         n = len(xyxy)

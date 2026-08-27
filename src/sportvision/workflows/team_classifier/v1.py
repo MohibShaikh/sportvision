@@ -88,14 +88,14 @@ class TeamClassifierBlockV1(WorkflowBlock):
 
     @staticmethod
     def _extract_features(crop: np.ndarray) -> np.ndarray:
-        hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
-        h, w = hsv.shape[:2]
-        jersey = hsv[int(h * 0.2) : int(h * 0.6), int(w * 0.2) : int(w * 0.8)]
+        h, w = crop.shape[:2]
+        jersey = crop[int(h * 0.2) : int(h * 0.6), int(w * 0.2) : int(w * 0.8)]
         if jersey.size == 0:
-            jersey = hsv
-        hist_h = cv2.calcHist([jersey], [0], None, [16], [0, 180]).flatten()
-        hist_s = cv2.calcHist([jersey], [1], None, [8], [0, 256]).flatten()
-        hist_v = cv2.calcHist([jersey], [2], None, [8], [0, 256]).flatten()
+            jersey = crop
+        hsv = cv2.cvtColor(jersey, cv2.COLOR_BGR2HSV)
+        hist_h = cv2.calcHist([hsv], [0], None, [16], [0, 180]).flatten()
+        hist_s = cv2.calcHist([hsv], [1], None, [8], [0, 256]).flatten()
+        hist_v = cv2.calcHist([hsv], [2], None, [8], [0, 256]).flatten()
         feat = np.concatenate([hist_h, hist_s, hist_v])
         feat = feat / (feat.sum() + 1e-8)
         return feat
@@ -139,7 +139,7 @@ class TeamClassifierBlockV1(WorkflowBlock):
 
         if self._model is None or self._n_teams != n_teams or needs_refit:
             self._n_teams = n_teams
-            self._model = KMeans(n_clusters=n_teams, random_state=0, n_init=10)
+            self._model = KMeans(n_clusters=n_teams, random_state=0, n_init=2)
             self._model.fit(features)
 
         team_ids = self._model.predict(features)

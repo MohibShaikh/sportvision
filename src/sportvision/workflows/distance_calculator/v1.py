@@ -64,7 +64,7 @@ class DistanceCalculatorManifest(WorkflowBlockManifest):
 
 class DistanceCalculatorBlockV1(WorkflowBlock):
     def __init__(self):
-        self._positions: dict[int, list[tuple[float, float]]] = {}
+        self._last_position: dict[int, tuple[float, float]] = {}
         self._cumulative: dict[int, float] = {}
 
     @classmethod
@@ -100,14 +100,13 @@ class DistanceCalculatorBlockV1(WorkflowBlock):
             tid = int(tid)
             cx, cy = float(centers_x[i]), float(centers_y[i])
 
-            if tid in self._positions:
-                prev = self._positions[tid][-1]
+            prev = self._last_position.get(tid)
+            if prev is not None:
                 step = np.sqrt((cx - prev[0]) ** 2 + (cy - prev[1]) ** 2)
                 self._cumulative[tid] = self._cumulative.get(tid, 0.0) + step
-                self._positions[tid].append((cx, cy))
             else:
-                self._positions[tid] = [(cx, cy)]
                 self._cumulative[tid] = 0.0
+            self._last_position[tid] = (cx, cy)
 
             distances[i] = self._cumulative[tid]
 

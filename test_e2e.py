@@ -1,19 +1,22 @@
 """End-to-end test: run full SportVision pipeline on a real soccer clip."""
+
 from __future__ import annotations
+
+from pathlib import Path
 
 import cv2
 import numpy as np
-from pathlib import Path
 
-from sportvision.detection import SportsDetector
-from sportvision.tracking import SportsTracker
-from sportvision.teams import TeamClassifier
-from sportvision.homography import FieldHomography
-from sportvision.analytics.possession import PossessionTracker
-from sportvision.analytics.speed import SpeedEstimator
 from sportvision.analytics.distance import DistanceCalculator
 from sportvision.analytics.heatmap import HeatmapGenerator
-from sportvision.annotators import TeamColorAnnotator, StatsOverlayAnnotator, TrailAnnotator
+from sportvision.analytics.possession import PossessionTracker
+from sportvision.annotators import (
+    StatsOverlayAnnotator,
+    TeamColorAnnotator,
+    TrailAnnotator,
+)
+from sportvision.detection import SportsDetector
+from sportvision.tracking import SportsTracker
 
 VIDEO = Path(__file__).parent / "test_data" / "soccer_broadcast.mp4"
 OUTPUT = Path(__file__).parent / "test_data" / "output.mp4"
@@ -33,7 +36,6 @@ def main():
     detector = SportsDetector(confidence_threshold=0.10)
     tracker = SportsTracker()
     possession = PossessionTracker()
-    speed_est = SpeedEstimator(fps=fps)
     distance_calc = DistanceCalculator()
     heatmap = HeatmapGenerator(resolution=(105, 68))
     team_ann = TeamColorAnnotator(home_color=(0, 0, 255), away_color=(255, 0, 0))
@@ -87,9 +89,9 @@ def main():
                 # Use class_id as fake team_id for now (no team classifier fit yet)
                 team_ids = np.zeros(len(player_pos), dtype=int)
                 if len(player_pos) > 1:
-                    team_ids[len(player_pos)//2:] = 1
+                    team_ids[len(player_pos) // 2 :] = 1
                 possession.update(player_pos, team_ids, ball_pos)
-                heatmap.update(player_pos * np.array([[105/w, 68/h]]), team_ids)
+                heatmap.update(player_pos * np.array([[105 / w, 68 / h]]), team_ids)
 
         # Annotate
         annotated = frame.copy()
@@ -105,30 +107,50 @@ def main():
         frame_num += 1
 
         if frame_num % 25 == 0:
-            print(f"  Frame {frame_num}/{total}: {n_dets} detections, {n_tracked} tracked")
+            print(
+                f"  Frame {frame_num}/{total}: {n_dets} detections, {n_tracked} tracked"
+            )
 
     cap.release()
     writer.release()
 
     # Stats summary
-    print(f"\n{'='*50}")
-    print(f"RESULTS")
-    print(f"{'='*50}")
+    print(f"\n{'=' * 50}")
+    print("RESULTS")
+    print(f"{'=' * 50}")
     print(f"Frames processed: {frame_num}")
     print(f"Avg detections/frame: {np.mean(det_counts):.1f}")
     print(f"Max detections/frame: {max(det_counts)}")
     print(f"Min detections/frame: {min(det_counts)}")
     print(f"Unique tracker IDs: {len(positions)}")
 
-    # Speed
-    speeds = speed_est.calculate(positions, frame_indices)
+    # Speed in pixels/sec: no homography, so no meters calibration.
+    speeds = {}
+    for tid, pos_list in positions.items():
+        if len(pos_list) < 2:
+            speeds[tid] = 0.0
+            continue
+        frames = frame_indices[tid]
+        dt = (frames[-1] - frames[-2]) / fps
+        if dt <= 0:
+            speeds[tid] = 0.0
+            continue
+        dx = pos_list[-1][0] - pos_list[-2][0]
+        dy = pos_list[-1][1] - pos_list[-2][1]
+        speeds[tid] = (dx * dx + dy * dy) ** 0.5 / dt
+
     if speeds:
-        print(f"Speed range: {min(speeds.values()):.1f} - {max(speeds.values()):.1f} km/h")
+        print(
+            f"Speed range: {min(speeds.values()):.1f} - {max(speeds.values()):.1f} px/s"
+        )
 
     # Distance
     distances = distance_calc.calculate(positions)
     if distances:
-        print(f"Distance range: {min(distances.values()):.1f} - {max(distances.values()):.1f} px")
+        print(
+            f"Distance range: {min(distances.values()):.1f} - "
+            f"{max(distances.values()):.1f} px"
+        )
 
     # Possession
     print(f"Possession: {poss_stats}")

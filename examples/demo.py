@@ -17,8 +17,11 @@ import numpy as np
 
 from sportvision.analytics.distance import DistanceCalculator
 from sportvision.analytics.possession import PossessionTracker
-from sportvision.analytics.speed import SpeedEstimator
-from sportvision.annotators import StatsOverlayAnnotator, TeamColorAnnotator, TrailAnnotator
+from sportvision.annotators import (
+    StatsOverlayAnnotator,
+    TeamColorAnnotator,
+    TrailAnnotator,
+)
 from sportvision.detection import SportsDetector
 from sportvision.teams import TeamClassifier
 from sportvision.tracking import SportsTracker
@@ -30,9 +33,13 @@ def main():
     parser.add_argument("--output", default="output.mp4", help="Output video path")
     parser.add_argument("--max-frames", type=int, default=0, help="Max frames (0=all)")
     parser.add_argument(
-        "--model", default="rfdetr-base", help="Detection model (rfdetr-base/rfdetr-large)"
+        "--model",
+        default="rfdetr-base",
+        help="Detection model (rfdetr-base/rfdetr-large)",
     )
-    parser.add_argument("--threshold", type=float, default=0.5, help="Detection threshold")
+    parser.add_argument(
+        "--threshold", type=float, default=0.5, help="Detection threshold"
+    )
     args = parser.parse_args()
 
     cap = cv2.VideoCapture(args.source)
@@ -53,7 +60,6 @@ def main():
     tracker = SportsTracker()
     team_clf = TeamClassifier(n_teams=2)
     possession = PossessionTracker()
-    speed_est = SpeedEstimator(fps=fps)
     distance_calc = DistanceCalculator()
 
     team_ann = TeamColorAnnotator(home_color=(0, 0, 255), away_color=(255, 165, 0))
@@ -130,10 +136,16 @@ def main():
             team_ids = np.array(team_clf.predict(crops))
 
         # Track positions (use box center)
-        centers = np.column_stack([
-            (xyxy[:, 0] + xyxy[:, 2]) / 2,
-            (xyxy[:, 1] + xyxy[:, 3]) / 2,
-        ]) if len(xyxy) > 0 else np.empty((0, 2))
+        centers = (
+            np.column_stack(
+                [
+                    (xyxy[:, 0] + xyxy[:, 2]) / 2,
+                    (xyxy[:, 1] + xyxy[:, 3]) / 2,
+                ]
+            )
+            if len(xyxy) > 0
+            else np.empty((0, 2))
+        )
 
         for i, tid in enumerate(tracker_ids):
             tid = int(tid)
@@ -142,23 +154,19 @@ def main():
             frame_history.setdefault(tid, []).append(frame_idx)
             trail_history.setdefault(tid, []).append(pos)
 
-        # Ball possession (use first detected "ball-like" object or smallest bbox)
-        if len(centers) > 0:
-            areas = (xyxy[:, 2] - xyxy[:, 0]) * (xyxy[:, 3] - xyxy[:, 1])
-            ball_idx = np.argmin(areas)
-            ball_pos = centers[ball_idx]
-            player_mask = np.arange(len(centers)) != ball_idx
-            if player_mask.sum() > 0:
-                possession.update(
-                    centers[player_mask], team_ids[player_mask], ball_pos
-                )
+        # Ball possession from class_id (players=0, ball=1)
+        class_ids = tracked.get("class_id", np.zeros(len(xyxy), dtype=int))
+        ball_mask = class_ids == 1
+        player_mask = class_ids == 0
+        if ball_mask.any() and player_mask.any():
+            possession.update(
+                centers[player_mask], team_ids[player_mask], centers[ball_mask][0]
+            )
 
         # Annotate
         annotated = team_ann.annotate(frame.copy(), xyxy, team_ids)
         annotated = trail_ann.annotate(annotated, trail_history)
-        annotated = stats_ann.annotate(
-            annotated, possession=possession.get_stats()
-        )
+        annotated = stats_ann.annotate(annotated, possession=possession.get_stats())
 
         writer.write(annotated)
         frame_idx += 1
@@ -172,8 +180,20 @@ def main():
     cap.release()
     writer.release()
 
-    # Final stats
-    speeds = speed_est.calculate(positions_history, frame_history)
+    # Final stats. No homography here, so speed/distance are in pixels.
+    speeds: dict[int, float] = {}
+    for tid, pos_list in positions_history.items():
+        if len(pos_list) < 2:
+            speeds[tid] = 0.0
+            continue
+        frames = frame_history[tid]
+        dt = (frames[-1] - frames[-2]) / fps
+        if dt <= 0:
+            speeds[tid] = 0.0
+            continue
+        dx = pos_list[-1][0] - pos_list[-2][0]
+        dy = pos_list[-1][1] - pos_list[-2][1]
+        speeds[tid] = (dx * dx + dy * dy) ** 0.5 / dt
     distances = distance_calc.calculate(positions_history)
     poss = possession.get_stats()
 
@@ -183,12 +203,8 @@ def main():
         "avg_fps": round(frame_idx / elapsed, 1) if elapsed > 0 else 0,
         "possession": {str(k): round(v, 3) for k, v in poss.items()},
         "players_tracked": len(positions_history),
-        "avg_speed_kmh": {
-            str(k): round(v, 1) for k, v in speeds.items()
-        },
-        "total_distance_px": {
-            str(k): round(v, 1) for k, v in distances.items()
-        },
+        "avg_speed_px_s": {str(k): round(v, 1) for k, v in speeds.items()},
+        "total_distance_px": {str(k): round(v, 1) for k, v in distances.items()},
     }
 
     stats_path = args.output.rsplit(".", 1)[0] + "_stats.json"
@@ -199,7 +215,10 @@ def main():
     print(f"Stats: {stats_path}")
     print(f"Possession: Team 0={poss.get(0, 0):.1%}, Team 1={poss.get(1, 0):.1%}")
     print(f"Players tracked: {len(positions_history)}")
-    print(f"Processing: {frame_idx} frames in {elapsed:.1f}s ({frame_idx/elapsed:.1f} FPS)")
+    print(
+        f"Processing: {frame_idx} frames in {elapsed:.1f}s "
+        f"({frame_idx / elapsed:.1f} FPS)"
+    )
 
 
 if __name__ == "__main__":

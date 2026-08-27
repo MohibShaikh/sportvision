@@ -17,6 +17,8 @@ class PossessionTracker:
         team_ids: np.ndarray,
         ball_position: np.ndarray,
     ) -> None:
+        if len(player_positions) == 0:
+            return
         distances = np.linalg.norm(player_positions - ball_position, axis=1)
         nearest_idx = np.argmin(distances)
         if distances[nearest_idx] <= self.ball_proximity_thresh:
