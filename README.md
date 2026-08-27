@@ -1,15 +1,20 @@
 # SportVision
 
-Real-time sports analytics toolkit built on the Roboflow ecosystem. Detects players and ball with any COCO-compatible model (YOLOv8, RF-DETR, etc.), tracks with ByteTrack, classifies teams by jersey color, and computes possession, speed, distance, and heatmaps.
+Real-time sports analytics toolkit built on the Roboflow ecosystem. It detects players and the ball, tracks them with ByteTrack, clusters teams by jersey color, and computes possession, speed, distance, and heatmaps. Detection works with any COCO-compatible model, YOLOv8 and RF-DETR included.
 
 ## Features
 
-- **Detection** — Works with any COCO-compatible detector (YOLOv8, RF-DETR, etc.)
-- **Tracking** — ByteTrack via supervision with fallback sequential IDs
-- **Team Classification** — KMeans on HSV jersey histograms
-- **Homography** — Pixel→field coordinate mapping via `cv2.findHomography`
-- **Analytics** — Possession, speed, distance, and heatmap generation
-- **Annotation** — Team-colored bounding boxes, stats overlay, player trails
+**Detection.** Works with any COCO-compatible detector, YOLOv8 and RF-DETR included.
+
+**Tracking.** ByteTrack via supervision, with sequential IDs as the fallback when `trackers` is missing.
+
+**Team classification.** KMeans on HSV jersey histograms.
+
+**Homography.** Pixel to field coordinate mapping via `cv2.findHomography`.
+
+**Analytics.** Possession, speed, distance, and heatmap generation.
+
+**Annotation.** Team-colored bounding boxes, a stats overlay, and player trails.
 
 ## Quick Start
 
@@ -26,7 +31,7 @@ result = pipeline.process_frame(frame)
 
 Detection needs a backend: `pip install "sportvision[inference]"` for RF-DETR, or install `ultralytics` for YOLO. Without one the pipeline returns empty detections and logs a warning once.
 
-Two knobs make the pipeline actually real-time on a GPU. `detect_every=N` runs detection every Nth frame and reuses the last result in between. `infer_size` caps the detector's input size (default 640) so the model sees fewer pixels; detection quality barely moves and boxes are mapped back to full frame coordinates.
+Two knobs make it run real-time on a GPU. `detect_every=N` runs detection every Nth frame and reuses the last result in between. `infer_size` caps the detector's input size (default 640) so the model sees fewer pixels; detection quality barely moves and boxes are mapped back to full frame coordinates.
 
 ```python
 pipeline = SportVisionPipeline(device="auto", detect_every=3, infer_size=640)
@@ -48,7 +53,7 @@ This registers 4 blocks you can use in any Roboflow Workflow:
 | Team Classifier | `sportvision/team_classifier@v1` | Clusters players into teams by jersey color. `refit_every=N` to periodically refit KMeans. |
 | Possession Tracker | `sportvision/possession_tracker@v1` | Tracks ball possession per team over time. Warns when `team_id` is missing. |
 | Distance Calculator | `sportvision/distance_calculator@v1` | Cumulative distance per tracked player. Supports `homography_matrix` for field-unit distances. |
-| Sports Detection Filter | `sportvision/sports_detection_filter@v1` | Filters COCO detections to sports classes |
+| Sports Detection Filter | `sportvision/sports_detection_filter@v1` | Filters COCO detections to sports classes. |
 
 ### Example: Using blocks directly in Python
 
@@ -135,17 +140,17 @@ print(result["detections"].data["distance"])  # cumulative distance per tracker
 
 ```
 src/sportvision/
-├── detection.py      # SportsDetector — wraps COCO detectors, maps to sports classes
-├── tracking.py       # SportsTracker — ByteTrack via supervision
-├── teams.py          # TeamClassifier — KMeans on HSV jersey histograms
-├── homography.py     # FieldHomography — pixel→field coords
+├── detection.py      # SportsDetector, wraps COCO detectors, maps to sports classes
+├── tracking.py       # SportsTracker, ByteTrack via supervision
+├── teams.py          # TeamClassifier, KMeans on HSV jersey histograms
+├── homography.py     # FieldHomography, pixel to field coords
 ├── analytics/
-│   ├── possession.py # PossessionTracker — nearest-player-to-ball per frame
-│   ├── speed.py      # SpeedEstimator — displacement/time → km/h
-│   ├── distance.py   # DistanceCalculator — cumulative path length
-│   └── heatmap.py    # HeatmapGenerator — 2D histogram + gaussian blur
+│   ├── possession.py # PossessionTracker, nearest player to the ball per frame
+│   ├── speed.py      # SpeedEstimator, displacement over time to km/h
+│   ├── distance.py   # DistanceCalculator, cumulative path length
+│   └── heatmap.py    # HeatmapGenerator, 2D histogram plus gaussian blur
 ├── annotators.py     # TeamColorAnnotator, StatsOverlayAnnotator, TrailAnnotator
-├── pipeline.py       # SportVisionPipeline — orchestrates all modules
+├── pipeline.py       # SportVisionPipeline, orchestrates all modules
 └── workflows/            # Roboflow Workflows plugin
     ├── _compat.py        # Inference compatibility shim
     ├── kinds.py          # Custom kind definitions

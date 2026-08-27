@@ -1,10 +1,8 @@
 # SportVision Core Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
-
 **Goal:** Build a real-time sports analytics Python toolkit with player detection, tracking, team classification, field homography, possession tracking, speed/distance estimation, heatmaps, and Roboflow Workflow blocks.
 
-**Architecture:** Modular package with independent submodules (detection, tracking, teams, homography, analytics, annotators, workflows). Each module wraps proven libraries (RF-DETR, ByteTrack via `supervision`/`trackers`) behind clean APIs. Analytics modules consume tracking output and produce stats. Workflow blocks expose each module as Roboflow Inference blocks.
+**Architecture:** Modular package with independent submodules (detection, tracking, teams, homography, analytics, annotators, workflows). Each module wraps an existing library, like RF-DETR or ByteTrack via supervision/trackers, behind a small API. Analytics modules consume tracking output and produce stats. Workflow blocks expose each module as Roboflow Inference blocks.
 
 **Tech Stack:** Python 3.10+, numpy, opencv-python, supervision, scikit-learn (KMeans for teams), inference (Roboflow), rf-detr, trackers (ByteTrack). Dev: pytest, ruff.
 
@@ -70,9 +68,9 @@ testpaths = ["tests"]
 __version__ = "0.1.0"
 ```
 
-`src/sportvision/py.typed` — empty marker file.
+`src/sportvision/py.typed`, an empty marker file.
 
-`tests/__init__.py` — empty.
+`tests/__init__.py`, empty.
 
 `tests/conftest.py`:
 ```python
@@ -169,7 +167,7 @@ class TestSportsDetector:
 **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/test_detection.py -v`
-Expected: FAIL — `ModuleNotFoundError`
+Expected: FAIL, a `ModuleNotFoundError`
 
 **Step 3: Write minimal implementation**
 
@@ -245,7 +243,7 @@ class SportsDetector:
 **Step 4: Run test to verify it passes**
 
 Run: `pytest tests/test_detection.py -v`
-Expected: PASS (all 4 tests — model falls back to empty results without inference installed)
+Expected: PASS (all 4 tests; the model falls back to empty results without inference installed)
 
 **Step 5: Commit**
 
@@ -608,7 +606,7 @@ git commit -m "feat: add field homography with perspective transform"
 
 ---
 
-### Task 6: Analytics — Possession Tracker
+### Task 6: Analytics Possession Tracker
 
 **Files:**
 - Create: `src/sportvision/analytics/__init__.py`
@@ -728,7 +726,7 @@ git commit -m "feat: add possession tracker"
 
 ---
 
-### Task 7: Analytics — Speed Estimator & Distance Calculator
+### Task 7: Analytics Speed Estimator & Distance Calculator
 
 **Files:**
 - Create: `src/sportvision/analytics/speed.py`
@@ -868,7 +866,7 @@ git commit -m "feat: add speed estimator and distance calculator"
 
 ---
 
-### Task 8: Analytics — Heatmap Generator
+### Task 8: Analytics Heatmap Generator
 
 **Files:**
 - Create: `src/sportvision/analytics/heatmap.py`
@@ -1106,7 +1104,7 @@ git commit -m "feat: add annotators for team colors, stats overlay, and trails"
 
 ---
 
-### Task 10: Pipeline — SportVisionPipeline
+### Task 10: Pipeline SportVisionPipeline
 
 **Files:**
 - Create: `src/sportvision/pipeline.py`
@@ -1275,7 +1273,7 @@ class TeamClassifierBlock(WorkflowBlock):
 
     def run(self, image, detections) -> dict:
         from sportvision.teams import TeamClassifier
-        # Placeholder — real implementation extracts crops and classifies
+        # Placeholder; the real implementation extracts crops and classifies
         return {"predictions": detections, "team_ids": []}
 
 
