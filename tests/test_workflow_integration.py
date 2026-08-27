@@ -21,6 +21,8 @@ import numpy as np
 import pytest
 import supervision as sv
 
+pytest.importorskip("ultralytics")
+
 VIDEO_DIR = Path(__file__).resolve().parent.parent / "test_data"
 VIDEO_PATH = VIDEO_DIR / "basketball-1.mp4"
 OUTPUT_VIDEO = VIDEO_DIR / "integration_output.mp4"
