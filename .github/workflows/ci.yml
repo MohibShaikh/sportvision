@@ -20,3 +20,13 @@ jobs:
       - run: ruff check src/ tests/
       - run: ruff format --check src/ tests/
       - run: pytest tests/ -v --tb=short
+
+  browser-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]" "streamlit>=1.63,<2"
+      - run: pytest tests/test_app.py -v --tb=short

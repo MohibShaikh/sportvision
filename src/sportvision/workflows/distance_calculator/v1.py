@@ -82,8 +82,7 @@ class DistanceCalculatorBlockV1(WorkflowBlock):
 
         tracker_ids = detections.tracker_id
         if tracker_ids is None:
-            detections.data["distance"] = np.zeros(len(detections))
-            return {"detections": detections}
+            raise ValueError("Distance requires persistent tracker_id values")
 
         centers_x = (detections.xyxy[:, 0] + detections.xyxy[:, 2]) / 2
         centers_y = (detections.xyxy[:, 1] + detections.xyxy[:, 3]) / 2

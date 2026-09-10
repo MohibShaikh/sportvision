@@ -269,8 +269,8 @@ class TestDistanceCalculatorBlock:
             xyxy=np.array([[0, 0, 10, 10]], dtype=float),
             class_id=np.array([0]),
         )
-        result = block.run(detections=dets)
-        assert result["detections"].data["distance"][0] == 0.0
+        with pytest.raises(ValueError, match="persistent tracker_id"):
+            block.run(detections=dets)
 
 
 # ---------------------------------------------------------------------------
@@ -360,3 +360,11 @@ class TestPluginRegistration:
         assert PossessionTrackerBlockV1 in blocks
         assert DistanceCalculatorBlockV1 in blocks
         assert SportsDetectionFilterBlockV1 in blocks
+
+
+def test_community_plugin_module_alias():
+    import sportvision
+    import sportvision.workflows
+
+    assert sportvision.load_blocks() == sportvision.workflows.load_blocks()
+    assert sportvision.load_kinds() == sportvision.workflows.load_kinds()

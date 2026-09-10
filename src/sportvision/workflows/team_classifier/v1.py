@@ -128,7 +128,18 @@ class TeamClassifierBlockV1(WorkflowBlock):
 
         self._frame_count += 1
         img = image.numpy_image
-        crops = self._get_crops(img, detections)
+        if n_teams < 1 or refit_every < 0:
+            raise ValueError("n_teams must be positive and refit_every nonnegative")
+        player_mask = (
+            detections.class_id == 0
+            if detections.class_id is not None
+            else np.ones(len(detections), dtype=bool)
+        )
+        team_ids = np.full(len(detections), -1, dtype=int)
+        detections.data["team_id"] = team_ids
+        if not player_mask.any():
+            return {"detections": detections}
+        crops = self._get_crops(img, detections[player_mask])
         features = np.array([self._extract_features(c) for c in crops])
 
         needs_refit = (
@@ -138,10 +149,18 @@ class TeamClassifierBlockV1(WorkflowBlock):
         )
 
         if self._model is None or self._n_teams != n_teams or needs_refit:
+            if len(features) < n_teams:
+                return {"detections": detections}
+            previous = self._model if self._n_teams == n_teams else None
             self._n_teams = n_teams
-            self._model = KMeans(n_clusters=n_teams, random_state=0, n_init=2)
+            self._model = KMeans(
+                n_clusters=n_teams,
+                random_state=0,
+                init=previous.cluster_centers_ if previous is not None else "k-means++",
+                n_init=1 if previous is not None else 2,
+            )
             self._model.fit(features)
 
-        team_ids = self._model.predict(features)
+        team_ids[player_mask] = self._model.predict(features)
         detections.data["team_id"] = team_ids
         return {"detections": detections}

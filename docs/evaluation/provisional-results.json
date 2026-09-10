@@ -1,0 +1,21 @@
+{
+  "annotation_status": "Provisional assistant visual annotations; requires independent human review",
+  "labeled_frames": 3,
+  "ball_labeled_frames": 2,
+  "ball_visible_frame_recall": 0.0,
+  "ball_visible_frame_precision": null,
+  "labeled_player_boxes": 6,
+  "matched_player_boxes": 6,
+  "player_box_recall": 1.0,
+  "team_accuracy_on_matched_players": 0.8333333333333334,
+  "identity_switches_between_labeled_matches": 1,
+  "identity_comparisons": 4,
+  "possession_labeled_frames": 2,
+  "possession_agreement": 0.0,
+  "possession_prediction_coverage": 0.0,
+  "iou_threshold": 0.5,
+  "note": "Partial-label diagnostic, not a full tracking benchmark. Null metrics mean no eligible observations.",
+  "model": "yolov8n.pt",
+  "review_mode": "chosen white/black colors",
+  "source_frames_processed": 150
+}

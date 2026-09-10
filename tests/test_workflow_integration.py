@@ -62,9 +62,7 @@ def _make_workflow_image(img: np.ndarray):
     return mock
 
 
-def _detect_with_yolo(
-    model, frame: np.ndarray, tracker_id_offset: int = 0
-) -> sv.Detections:
+def _detect_with_yolo(model, frame: np.ndarray) -> sv.Detections:
     """Run YOLO on a frame and return sv.Detections."""
     results = model(frame, verbose=False)
     boxes = results[0].boxes
@@ -75,7 +73,6 @@ def _detect_with_yolo(
     class_id = boxes.cls.cpu().numpy().astype(int)
     confidence = boxes.conf.cpu().numpy().astype(np.float32)
     dets = sv.Detections(xyxy=xyxy, class_id=class_id, confidence=confidence)
-    dets.tracker_id = np.arange(len(dets)) + tracker_id_offset
     return dets
 
 
@@ -146,6 +143,7 @@ class TestWorkflowBlocksIntegration:
 
     @pytest.fixture(autouse=True)
     def _import_blocks(self):
+        from sportvision.tracking import SportsTracker
         from sportvision.workflows.distance_calculator.v1 import (
             DistanceCalculatorBlockV1,
         )
@@ -159,6 +157,7 @@ class TestWorkflowBlocksIntegration:
             TeamClassifierBlockV1,
         )
 
+        self.tracker = SportsTracker()
         self.filter_block = SportsDetectionFilterBlockV1()
         self.team_block = TeamClassifierBlockV1()
         self.possession_block = PossessionTrackerBlockV1()
@@ -221,8 +220,14 @@ class TestWorkflowBlocksIntegration:
                 writer.write(frame)
                 continue
 
-            if filtered.tracker_id is None:
-                filtered.tracker_id = np.arange(len(filtered))
+            tracked = self.tracker.update(
+                {
+                    "xyxy": filtered.xyxy,
+                    "class_id": filtered.class_id,
+                    "confidence": filtered.confidence,
+                }
+            )
+            filtered = sv.Detections(**tracked)
 
             # 2. Team classify players
             player_mask = filtered.class_id == 0
@@ -376,8 +381,14 @@ class TestWorkflowBlocksIntegration:
             if len(raw) == 0:
                 continue
             filtered = self.filter_block.run(detections=raw)["detections"]
-            if filtered.tracker_id is None:
-                filtered.tracker_id = np.arange(len(filtered))
+            tracked = self.tracker.update(
+                {
+                    "xyxy": filtered.xyxy,
+                    "class_id": filtered.class_id,
+                    "confidence": filtered.confidence,
+                }
+            )
+            filtered = sv.Detections(**tracked)
             self.distance_block.run(detections=filtered, homography_matrix=h_mat)
             last_filtered = filtered
 

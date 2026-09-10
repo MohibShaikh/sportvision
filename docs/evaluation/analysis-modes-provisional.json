@@ -1,0 +1,339 @@
+{
+  "clip_sha256": "83ee1b66d366dff4b701a598b3752186735eb0e4f951fdb66c2fac0b810db3ac",
+  "annotation_status": "Provisional assistant visual annotations; requires independent human review",
+  "note": "Both modes include tracking fixes. Three provisional frames cannot establish production accuracy or false-positive rates. Timing includes model startup; modes run sequentially. Possession evidence was recomputed from saved uncorrected detections after the body-distance change; timings cover inference with the earlier center rule.",
+  "comparisons": {
+    "quick": {
+      "settings": {
+        "model": "yolov8n.pt",
+        "infer_size": 640,
+        "confidence_threshold": 0.25,
+        "ball_confidence_threshold": 0.25,
+        "tracking_minimum_iou": 0.1,
+        "frames_processed": 146,
+        "processing_time_s": 22.85,
+        "possession_method": "center"
+      },
+      "metrics": {
+        "contains_manual_corrections": false,
+        "annotation_status": "Provisional assistant visual annotations; requires independent human review",
+        "labeled_frames": 3,
+        "ball_labeled_frames": 2,
+        "ball_visible_frame_recall": 0.0,
+        "ball_visible_frame_precision": null,
+        "labeled_player_boxes": 6,
+        "matched_player_boxes": 6,
+        "player_box_recall": 1.0,
+        "team_accuracy_on_matched_players": 0.8333333333333334,
+        "identity_switches_between_labeled_matches": 0,
+        "identity_comparisons": 4,
+        "possession_labeled_frames": 2,
+        "possession_agreement": 0.0,
+        "possession_prediction_coverage": 0.0,
+        "iou_threshold": 0.5,
+        "note": "Partial-label diagnostic, not a full tracking benchmark. Null metrics mean no eligible observations."
+      },
+      "labeled_frame_evidence": [
+        {
+          "xyxy": [
+            [
+              1027.055419921875,
+              321.2383117675781,
+              1288.71240234375,
+              1028.0360107421875
+            ],
+            [
+              1374.472900390625,
+              332.706298828125,
+              1579.532958984375,
+              933.0967407226562
+            ]
+          ],
+          "class_id": [
+            0,
+            0
+          ],
+          "confidence": [
+            0.9147780537605286,
+            0.8754115700721741
+          ],
+          "tracker_id": [
+            0,
+            1
+          ],
+          "team_id": [
+            0,
+            1
+          ],
+          "frame_index": 100,
+          "evidence": {
+            "method": "center",
+            "team_id": null,
+            "tracker_id": null,
+            "distance_px": null,
+            "ball_xy": null,
+            "reason": "no_ball",
+            "ball_source": "detector"
+          }
+        },
+        {
+          "xyxy": [
+            [
+              600.1394653320312,
+              395.3682861328125,
+              1061.244873046875,
+              1049.8509521484375
+            ],
+            [
+              955.2976684570312,
+              447.24151611328125,
+              1298.6031494140625,
+              922.9081420898438
+            ]
+          ],
+          "class_id": [
+            0,
+            0
+          ],
+          "confidence": [
+            0.9007785320281982,
+            0.7865696549415588
+          ],
+          "tracker_id": [
+            0,
+            1
+          ],
+          "team_id": [
+            0,
+            1
+          ],
+          "frame_index": 130,
+          "evidence": {
+            "method": "center",
+            "team_id": null,
+            "tracker_id": null,
+            "distance_px": null,
+            "ball_xy": null,
+            "reason": "no_ball",
+            "ball_source": "detector"
+          }
+        },
+        {
+          "xyxy": [
+            [
+              412.4211730957031,
+              553.7678833007812,
+              968.6459350585938,
+              1062.924072265625
+            ],
+            [
+              893.9739990234375,
+              448.3135070800781,
+              1204.9951171875,
+              916.3140258789062
+            ]
+          ],
+          "class_id": [
+            0,
+            0
+          ],
+          "confidence": [
+            0.9381691813468933,
+            0.9109946489334106
+          ],
+          "tracker_id": [
+            0,
+            1
+          ],
+          "team_id": [
+            1,
+            1
+          ],
+          "frame_index": 145,
+          "evidence": {
+            "method": "center",
+            "team_id": null,
+            "tracker_id": null,
+            "distance_px": null,
+            "ball_xy": null,
+            "reason": "no_ball",
+            "ball_source": "detector"
+          }
+        }
+      ]
+    },
+    "detailed": {
+      "settings": {
+        "model": "yolov8n.pt",
+        "infer_size": 1280,
+        "confidence_threshold": 0.25,
+        "ball_confidence_threshold": 0.15,
+        "tracking_minimum_iou": 0.1,
+        "frames_processed": 146,
+        "processing_time_s": 184.42,
+        "possession_method": "body"
+      },
+      "metrics": {
+        "contains_manual_corrections": false,
+        "annotation_status": "Provisional assistant visual annotations; requires independent human review",
+        "labeled_frames": 3,
+        "ball_labeled_frames": 2,
+        "ball_visible_frame_recall": 0.5,
+        "ball_visible_frame_precision": 1.0,
+        "labeled_player_boxes": 6,
+        "matched_player_boxes": 6,
+        "player_box_recall": 1.0,
+        "team_accuracy_on_matched_players": 0.8333333333333334,
+        "identity_switches_between_labeled_matches": 0,
+        "identity_comparisons": 4,
+        "possession_labeled_frames": 2,
+        "possession_agreement": 0.5,
+        "possession_prediction_coverage": 0.5,
+        "iou_threshold": 0.5,
+        "note": "Partial-label diagnostic, not a full tracking benchmark. Null metrics mean no eligible observations."
+      },
+      "labeled_frame_evidence": [
+        {
+          "xyxy": [
+            [
+              1024.6611328125,
+              320.5191650390625,
+              1289.708984375,
+              1059.2579345703125
+            ],
+            [
+              1368.108154296875,
+              321.9002380371094,
+              1580.7554931640625,
+              936.0150146484375
+            ],
+            [
+              1370.2666015625,
+              566.1967163085938,
+              1444.1522216796875,
+              639.9554443359375
+            ]
+          ],
+          "class_id": [
+            0,
+            0,
+            1
+          ],
+          "confidence": [
+            0.8562164902687073,
+            0.8577331304550171,
+            0.2493646889925003
+          ],
+          "tracker_id": [
+            2,
+            3,
+            -1
+          ],
+          "team_id": [
+            0,
+            1,
+            -1
+          ],
+          "frame_index": 100,
+          "evidence": {
+            "method": "body",
+            "team_id": 1,
+            "tracker_id": 3,
+            "distance_px": 0.0,
+            "ball_xy": [
+              1407.2094116210938,
+              603.0760803222656
+            ],
+            "reason": "attributed",
+            "ball_source": "detector",
+            "body_distance_limit": 0.15
+          }
+        },
+        {
+          "xyxy": [
+            [
+              597.767578125,
+              392.4407043457031,
+              1053.6826171875,
+              1046.4415283203125
+            ],
+            [
+              935.0344848632812,
+              446.0224914550781,
+              1303.3865966796875,
+              919.2916870117188
+            ]
+          ],
+          "class_id": [
+            0,
+            0
+          ],
+          "confidence": [
+            0.8346753120422363,
+            0.8798098564147949
+          ],
+          "tracker_id": [
+            2,
+            3
+          ],
+          "team_id": [
+            0,
+            1
+          ],
+          "frame_index": 130,
+          "evidence": {
+            "method": "body",
+            "team_id": null,
+            "tracker_id": null,
+            "distance_px": null,
+            "ball_xy": null,
+            "reason": "no_ball",
+            "ball_source": "detector"
+          }
+        },
+        {
+          "xyxy": [
+            [
+              410.410400390625,
+              554.1405029296875,
+              967.8629150390625,
+              1055.6729736328125
+            ],
+            [
+              889.44873046875,
+              447.9515075683594,
+              1205.03759765625,
+              917.2141723632812
+            ]
+          ],
+          "class_id": [
+            0,
+            0
+          ],
+          "confidence": [
+            0.9191313982009888,
+            0.9274135828018188
+          ],
+          "tracker_id": [
+            2,
+            3
+          ],
+          "team_id": [
+            1,
+            1
+          ],
+          "frame_index": 145,
+          "evidence": {
+            "method": "body",
+            "team_id": null,
+            "tracker_id": null,
+            "distance_px": null,
+            "ball_xy": null,
+            "reason": "no_ball",
+            "ball_source": "detector"
+          }
+        }
+      ]
+    }
+  }
+}

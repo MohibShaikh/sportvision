@@ -18,11 +18,10 @@ class TestPossessionTracker:
         assert stats[0] > stats[1]
         assert abs(sum(stats.values()) - 1.0) < 1e-6
 
-    def test_no_updates_returns_even_split(self):
+    def test_no_updates_returns_no_estimate(self):
         pt = PossessionTracker(n_teams=2)
         stats = pt.get_stats()
-        assert stats[0] == 0.5
-        assert stats[1] == 0.5
+        assert stats == {}
 
     def test_multiple_updates(self):
         pt = PossessionTracker()
@@ -38,4 +37,4 @@ class TestPossessionTracker:
         pt.update(np.array([[100, 100]]), np.array([0]), np.array([105, 100]))
         pt.reset()
         stats = pt.get_stats()
-        assert stats[0] == 0.5
+        assert stats == {}

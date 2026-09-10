@@ -38,3 +38,14 @@ class TestTeamClassifier:
         crop = np.full((160, 80, 3), 128, dtype=np.uint8)
         feat = clf._extract_features(crop)
         assert feat.ndim == 1
+
+
+def test_selected_samples_preserve_team_order():
+    white = np.full((80, 40, 3), 255, np.uint8)
+    black = np.full((80, 40, 3), 21, np.uint8)
+    clf = TeamClassifier()
+    clf.set_team_samples([white, black])
+    assert clf.predict([black, white, black]) == [1, 0, 1]
+    shadowed_white = np.full((80, 40, 3), 160, np.uint8)
+    assert clf.predict([shadowed_white]) == [0]
+    assert clf.predict([]) == []

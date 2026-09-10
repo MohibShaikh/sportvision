@@ -83,19 +83,19 @@ class PossessionTrackerBlockV1(WorkflowBlock):
     ) -> BlockResult:
         if len(detections) == 0:
             return {
-                "possession_stats": {},
+                "possession_stats": self._stats(),
                 "possessing_team": -1,
                 "warning": "",
             }
 
         class_ids = detections.class_id
         ball_mask = class_ids == ball_class_id
-        player_mask = ~ball_mask
+        player_mask = (class_ids == 0) & ~ball_mask
 
         if not ball_mask.any() or not player_mask.any():
             total = sum(self._counts.values())
             stats = {k: v / total for k, v in self._counts.items()} if total > 0 else {}
-            possessing = max(self._counts, key=self._counts.get) if stats else -1
+            possessing = -1
             return {
                 "possession_stats": stats,
                 "possessing_team": possessing,
@@ -123,22 +123,28 @@ class PossessionTrackerBlockV1(WorkflowBlock):
         nearest_local = int(np.argmin(distances))
 
         warning = ""
+        possessing = -1
         if distances[nearest_local] <= ball_proximity_threshold:
             nearest_global = player_indices[nearest_local]
             team_ids = detections.data.get("team_id")
             if team_ids is not None:
                 team = int(team_ids[nearest_global])
-                self._counts[team] = self._counts.get(team, 0) + 1
+                if team >= 0:
+                    self._counts[team] = self._counts.get(team, 0) + 1
+                    possessing = team
             else:
                 warning = "team_id missing from detections; possession not updated"
                 logger.warning(warning)
 
         total = sum(self._counts.values())
         stats = {k: v / total for k, v in self._counts.items()} if total > 0 else {}
-        possessing = max(self._counts, key=self._counts.get) if stats else -1
 
         return {
             "possession_stats": stats,
             "possessing_team": possessing,
             "warning": warning,
         }
+
+    def _stats(self) -> dict[int, float]:
+        total = sum(self._counts.values())
+        return {k: v / total for k, v in self._counts.items()} if total else {}

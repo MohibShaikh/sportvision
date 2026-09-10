@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box}body{margin:0;font:14px system-ui;color:#ddd;background:transparent}
+#view{position:relative;width:100%;line-height:0}img{width:100%;display:block;border-radius:8px}
+.player{position:absolute;border:3px solid var(--color);background:transparent;cursor:pointer;padding:0}
+.player span{position:absolute;left:0;top:0;background:#111e;color:white;font:600 12px system-ui;padding:4px;white-space:nowrap}
+.ball{position:absolute;border:2px solid #ffd54a;pointer-events:none}.ball span{position:absolute;top:0;left:0;background:#ffd54a;color:#111;font:600 12px system-ui;padding:2px}
+.player:hover,.player:focus-visible{outline:3px solid #ffe18c;outline-offset:3px;background:#ffffff18}
+.marking{cursor:crosshair}.marking .player{pointer-events:none}
+#timeline{display:flex;height:32px;gap:1px;margin:12px 0;overflow:hidden;border-radius:5px}
+.segment{border:0;min-width:0;padding:0;cursor:pointer;flex-shrink:1;flex-basis:0}
+.segment:focus-visible,.segment:hover{outline:3px solid #ffe18c;outline-offset:-3px}
+p{line-height:1.5;margin:8px 0}#position{font-variant-numeric:tabular-nums}
+</style></head><body>
+<div id="view"><img id="frame" alt="Reviewed video frame. Select a player box to correct their team."><div id="boxes"></div></div>
+<p id="position"></p><div id="timeline" role="group" aria-label="Possession evidence timeline"></div>
+<p>Click a player box to select them. Click a timeline segment to inspect its first frame.<br>Blue: Team 1 · Red: Team 2 · Gray: no attribution. Use Tab and Enter for keyboard navigation.</p>
+<script>
+const send=(type,data={})=>window.parent.postMessage({isStreamlitMessage:true,type,...data},'*');
+const emit=value=>send('streamlit:setComponentValue',{value:{...value,event_id:Date.now()+Math.random()},dataType:'json'});
+let currentArgs=null;
+const height=()=>send('streamlit:setFrameHeight',{height:document.body.scrollHeight+8});
+window.addEventListener('message',event=>{
+ if(event.source!==window.parent || event.data.type!=='streamlit:render')return;
+ const a=event.data.args;currentArgs=a;document.getElementById('view').classList.toggle('marking',a.mark_ball);document.body.style.color=event.data.theme?.textColor||'#ddd';
+ document.getElementById('frame').src='data:image/jpeg;base64,'+a.image;
+ const boxes=document.getElementById('boxes');boxes.replaceChildren();
+ for(const p of a.players){
+  const b=document.createElement('button');b.type='button';b.className='player';
+  const [x1,y1,x2,y2]=p.box;Object.assign(b.style,{left:100*x1/a.width+'%',top:100*y1/a.height+'%',width:100*(x2-x1)/a.width+'%',height:100*(y2-y1)/a.height+'%'});
+  b.style.setProperty('--color',p.team_id===0?'#3a8dff':p.team_id===1?'#ff5a64':'#aaa');
+  const label=p.track_id<0?'Waiting for a confirmed track':`Track ${p.track_id} · ${p.team_id===-2?'Ignored':p.team_id<0?'Unassigned':'Team '+(p.team_id+1)}`;
+  b.setAttribute('aria-label',label);b.title=label;
+  const span=document.createElement('span');span.textContent=label;b.appendChild(span);
+  b.disabled=p.track_id<0;
+  b.onclick=()=>emit({kind:'player',track_id:p.track_id,frame_index:a.frame_index});boxes.appendChild(b);
+ }
+ const ballBoxes=a.manual_ball?[[a.manual_ball[0]-5,a.manual_ball[1]-5,a.manual_ball[0]+5,a.manual_ball[1]+5]]:(a.balls||[]);
+ for(const box of ballBoxes){const b=document.createElement('div');b.className='ball';
+ const [x1,y1,x2,y2]=box;Object.assign(b.style,{left:100*x1/a.width+'%',top:100*y1/a.height+'%',width:100*(x2-x1)/a.width+'%',height:100*(y2-y1)/a.height+'%'});
+ const label=document.createElement('span');label.textContent=a.manual_ball?'Manual ball':'Model ball';b.appendChild(label);boxes.appendChild(b);}
+ const line=document.getElementById('timeline');line.replaceChildren();
+ for(const s of a.segments){const b=document.createElement('button');b.type='button';b.className='segment';
+ b.style.flexGrow=s.end_frame-s.start_frame+1;b.style.background=s.key[1]===0?'#3a8dff':s.key[1]===1?'#ff5a64':'#777';
+ b.setAttribute('aria-label',`${s.start_s.toFixed(2)}–${s.end_s.toFixed(2)} seconds: ${s.key[0]}`);b.title=b.getAttribute('aria-label');
+ b.onclick=()=>emit({kind:'seek',frame_index:s.start_frame});line.appendChild(b);}
+ document.getElementById('position').textContent=`Frame ${a.frame_index+1} of ${a.total} · ${(a.frame_index/a.fps).toFixed(2)} seconds`;
+ height();
+});
+document.getElementById('view').addEventListener('click',event=>{
+ if(!currentArgs?.mark_ball)return;
+ event.stopPropagation();
+ const r=document.getElementById('frame').getBoundingClientRect();
+ const x=Math.max(0,Math.min(currentArgs.width-1,(event.clientX-r.left)/r.width*currentArgs.width));
+ const y=Math.max(0,Math.min(currentArgs.height-1,(event.clientY-r.top)/r.height*currentArgs.height));
+ emit({kind:'ball',frame_index:currentArgs.frame_index,x,y});
+},true);
+document.getElementById('frame').onload=height;new ResizeObserver(height).observe(document.body);
+send('streamlit:componentReady',{apiVersion:1});
+</script></body></html>

@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sportvision"
-version = "0.3.1"
-description = "Real-time sports analytics toolkit built on the Roboflow ecosystem"
+version = "0.4.0"
+description = "Python building blocks for sports video analysis"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.10"
@@ -35,7 +35,11 @@ Homepage = "https://github.com/MohibShaikh/sportvision"
 Repository = "https://github.com/MohibShaikh/sportvision"
 Issues = "https://github.com/MohibShaikh/sportvision/issues"
 
+[project.scripts]
+sportvision = "sportvision.cli:main"
+
 [project.optional-dependencies]
+app = ["streamlit>=1.40,<2", "ultralytics>=8.3"]
 inference = ["inference>=0.30", "rfdetr>=1.0"]
 workflows = ["inference>=0.30"]
 dev = ["pytest>=7.0", "ruff>=0.4", "pytest-cov"]

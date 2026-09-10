@@ -23,12 +23,14 @@ class PossessionTracker:
         nearest_idx = np.argmin(distances)
         if distances[nearest_idx] <= self.ball_proximity_thresh:
             team = int(team_ids[nearest_idx])
+            if not 0 <= team < self.n_teams:
+                return
             self._counts[team] = self._counts.get(team, 0) + 1
 
     def get_stats(self) -> dict[int, float]:
         total = sum(self._counts.values())
         if total == 0:
-            return {i: 1.0 / self.n_teams for i in range(self.n_teams)}
+            return {}
         return {i: self._counts.get(i, 0) / total for i in range(self.n_teams)}
 
     def reset(self) -> None:

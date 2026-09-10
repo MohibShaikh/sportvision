@@ -35,9 +35,19 @@ class StatsOverlayAnnotator:
         **kwargs,
     ) -> np.ndarray:
         y = 30
+        if possession == {}:
+            cv2.putText(
+                frame,
+                "Possession: no estimate",
+                (10, y),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                self.font_scale,
+                (255, 255, 255),
+                2,
+            )
         if possession:
             for team, pct in possession.items():
-                text = f"Team {team}: {pct:.0%}"
+                text = f"Est. possession - Team {team + 1}: {pct:.0%}"
                 cv2.putText(
                     frame,
                     text,

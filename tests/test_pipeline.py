@@ -18,6 +18,7 @@ class TestSportVisionPipeline:
 
     def test_process_frame(self, sample_frame):
         p = SportVisionPipeline()
+        p._detector.detect = MagicMock(return_value=p._detector._empty_result())
         result = p.process_frame(sample_frame)
         assert "detections" in result
         assert "annotated_frame" in result
@@ -26,7 +27,7 @@ class TestSportVisionPipeline:
         p = SportVisionPipeline()
         stats = p.get_stats()
         assert "possession" in stats
-        assert stats["possession"] == {0: 0.5, 1: 0.5}
+        assert stats["possession"] == {}
 
     def test_process_frame_runs_possession(self):
         from sportvision.teams import TeamClassifier

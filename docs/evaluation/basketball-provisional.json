@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "clip_sha256": "83ee1b66d366dff4b701a598b3752186735eb0e4f951fdb66c2fac0b810db3ac",
+  "source": "Local supervision basketball-1.mp4 sample, 1920x1080",
+  "annotation_status": "Provisional assistant visual annotations; requires independent human review",
+  "notes": "Boxes drawn from source frames. Team 0=white jersey, team 1=black jersey. Frame 130 ball/possession left unlabeled because of occlusion. Three frames are a tooling smoke check, not an accuracy benchmark.",
+  "frames": [
+    {
+      "frame_index": 100,
+      "ball_visible": true,
+      "possession_team": 1,
+      "players": [
+        {
+          "player_id": "white",
+          "team_id": 0,
+          "xyxy": [
+            1020,
+            320,
+            1290,
+            1030
+          ]
+        },
+        {
+          "player_id": "black",
+          "team_id": 1,
+          "xyxy": [
+            1375,
+            328,
+            1590,
+            940
+          ]
+        }
+      ]
+    },
+    {
+      "frame_index": 130,
+      "ball_visible": null,
+      "players": [
+        {
+          "player_id": "white",
+          "team_id": 0,
+          "xyxy": [
+            600,
+            390,
+            1070,
+            1080
+          ]
+        },
+        {
+          "player_id": "black",
+          "team_id": 1,
+          "xyxy": [
+            942,
+            452,
+            1305,
+            965
+          ]
+        }
+      ]
+    },
+    {
+      "frame_index": 145,
+      "ball_visible": true,
+      "possession_team": 1,
+      "players": [
+        {
+          "player_id": "white",
+          "team_id": 0,
+          "xyxy": [
+            412,
+            552,
+            974,
+            1062
+          ]
+        },
+        {
+          "player_id": "black",
+          "team_id": 1,
+          "xyxy": [
+            889,
+            445,
+            1210,
+            917
+          ]
+        }
+      ]
+    }
+  ]
+}
