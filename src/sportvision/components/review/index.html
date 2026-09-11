@@ -1,35 +1,62 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-*{box-sizing:border-box}body{margin:0;font:14px system-ui;color:#ddd;background:transparent}
-#view{position:relative;width:100%;line-height:0}img{width:100%;display:block;border-radius:8px}
-.player{position:absolute;border:3px solid var(--color);background:transparent;cursor:pointer;padding:0}
-.player span{position:absolute;left:0;top:0;background:#111e;color:white;font:600 12px system-ui;padding:4px;white-space:nowrap}
-.ball{position:absolute;border:2px solid #ffd54a;pointer-events:none}.ball span{position:absolute;top:0;left:0;background:#ffd54a;color:#111;font:600 12px system-ui;padding:2px}
-.player:hover,.player:focus-visible{outline:3px solid #ffe18c;outline-offset:3px;background:#ffffff18}
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400..500&display=swap');
+:root{--bg:oklch(0.245 0.013 265);--fg:oklch(0.930 0.010 85);--fg-3:oklch(0.680 0.014 250);
+--rule:oklch(0.375 0.014 260);--rule-strong:oklch(0.500 0.014 258);--accent:oklch(0.790 0.105 85);
+--team-1:oklch(0.690 0.095 245);--team-2:oklch(0.655 0.135 30);--ball:var(--accent);
+--sans:'Archivo','Helvetica Neue',Helvetica,sans-serif;--serif:'Newsreader','Iowan Old Style',Georgia,serif}
+*{box-sizing:border-box}body{margin:0;font:400 14px/1.5 var(--sans);color:var(--fg);background:transparent}
+#view{position:relative;width:100%;line-height:0}
+img{width:100%;display:block;border:1px solid var(--rule-strong);border-radius:2px}
+.player{position:absolute;border:2px solid var(--color);background:transparent;cursor:pointer;padding:0;
+transition:outline-color .18s cubic-bezier(.22,1,.36,1);outline:2px solid transparent;outline-offset:2px}
+.player span{position:absolute;left:-1px;top:-1px;background:var(--color);color:var(--bg);
+font:600 10px/1.25 var(--sans);letter-spacing:.04em;padding:3px 6px;white-space:nowrap}
+.ball{position:absolute;border:2px solid var(--ball);pointer-events:none}
+.ball span{position:absolute;top:-1px;left:-1px;background:var(--ball);color:var(--bg);
+font:600 10px/1.25 var(--sans);letter-spacing:.04em;padding:2px 5px}
+.player:hover,.player:focus-visible{outline-color:var(--fg)}
 .marking{cursor:crosshair}.marking .player{pointer-events:none}
-#timeline{display:flex;height:32px;gap:1px;margin:12px 0;overflow:hidden;border-radius:5px}
-.segment{border:0;min-width:0;padding:0;cursor:pointer;flex-shrink:1;flex-basis:0}
-.segment:focus-visible,.segment:hover{outline:3px solid #ffe18c;outline-offset:-3px}
-p{line-height:1.5;margin:8px 0}#position{font-variant-numeric:tabular-nums}
+.corner{position:absolute;width:18px;height:18px;margin:-9px 0 0 -9px;border:2px solid var(--accent);
+border-radius:50%;pointer-events:none;display:flex;align-items:center;justify-content:center}
+.corner b{font:600 9px/1 var(--sans);color:var(--bg);background:var(--accent);border-radius:50%;
+width:14px;height:14px;display:flex;align-items:center;justify-content:center}
+#quad{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+#quad polygon{fill:color-mix(in oklch,var(--accent) 12%,transparent);stroke:var(--accent);
+stroke-width:1.5;vector-effect:non-scaling-stroke}
+/* The timeline is the data, not decoration: each segment is one possession run. */
+#timeline{display:flex;height:22px;gap:1px;margin:.9rem 0 .5rem;border-top:1px solid var(--fg);padding-top:3px}
+.segment{border:0;min-width:0;padding:0;cursor:pointer;flex-shrink:1;flex-basis:0;
+transition:opacity .18s cubic-bezier(.22,1,.36,1)}
+.segment:hover{opacity:.65}
+.segment:focus-visible{outline:2px solid var(--fg);outline-offset:-2px}
+p{margin:.5rem 0;font-size:.815rem;line-height:1.55;color:var(--fg-3);max-width:64ch}
+#position{font-family:var(--serif);font-size:1rem;color:var(--fg);font-variant-numeric:tabular-nums lining-nums;
+margin:.7rem 0 0}
+.key{display:inline-flex;align-items:center;gap:.3rem;margin-right:.8rem}
+.key i{width:.6rem;height:.6rem;display:inline-block;background:var(--k)}
+@media (prefers-reduced-motion:reduce){*{transition-duration:.001ms!important}}
 </style></head><body>
-<div id="view"><img id="frame" alt="Reviewed video frame. Select a player box to correct their team."><div id="boxes"></div></div>
+<div id="view"><img id="frame" alt="Reviewed video frame. Select a player box to correct their team."><div id="boxes"></div><svg id="quad" viewBox="0 0 100 100" preserveAspectRatio="none"></svg><div id="corners"></div></div>
 <p id="position"></p><div id="timeline" role="group" aria-label="Possession evidence timeline"></div>
-<p>Click a player box to select them. Click a timeline segment to inspect its first frame.<br>Blue: Team 1 · Red: Team 2 · Gray: no attribution. Use Tab and Enter for keyboard navigation.</p>
+<p><span class="key" style="--k:var(--team-1)"><i></i>Team 1</span><span class="key" style="--k:var(--team-2)"><i></i>Team 2</span><span class="key" style="--k:var(--rule-strong)"><i></i>No attribution</span><span class="key" style="--k:var(--ball)"><i></i>Ball</span></p>
+<p>Select a player box to correct their team. Select a timeline segment to jump to its first frame. Tab and Enter work throughout.</p>
 <script>
 const send=(type,data={})=>window.parent.postMessage({isStreamlitMessage:true,type,...data},'*');
 const emit=value=>send('streamlit:setComponentValue',{value:{...value,event_id:Date.now()+Math.random()},dataType:'json'});
+const ink=t=>t===0?'var(--team-1)':t===1?'var(--team-2)':'var(--rule-strong)';
 let currentArgs=null;
 const height=()=>send('streamlit:setFrameHeight',{height:document.body.scrollHeight+8});
 window.addEventListener('message',event=>{
  if(event.source!==window.parent || event.data.type!=='streamlit:render')return;
- const a=event.data.args;currentArgs=a;document.getElementById('view').classList.toggle('marking',a.mark_ball);document.body.style.color=event.data.theme?.textColor||'#ddd';
+ const a=event.data.args;currentArgs=a;document.getElementById('view').classList.toggle('marking',a.mark_ball||a.calibrate);
  document.getElementById('frame').src='data:image/jpeg;base64,'+a.image;
  const boxes=document.getElementById('boxes');boxes.replaceChildren();
  for(const p of a.players){
   const b=document.createElement('button');b.type='button';b.className='player';
   const [x1,y1,x2,y2]=p.box;Object.assign(b.style,{left:100*x1/a.width+'%',top:100*y1/a.height+'%',width:100*(x2-x1)/a.width+'%',height:100*(y2-y1)/a.height+'%'});
-  b.style.setProperty('--color',p.team_id===0?'#3a8dff':p.team_id===1?'#ff5a64':'#aaa');
+  b.style.setProperty('--color',ink(p.team_id));
   const label=p.track_id<0?'Waiting for a confirmed track':`Track ${p.track_id} · ${p.team_id===-2?'Ignored':p.team_id<0?'Unassigned':'Team '+(p.team_id+1)}`;
   b.setAttribute('aria-label',label);b.title=label;
   const span=document.createElement('span');span.textContent=label;b.appendChild(span);
@@ -39,22 +66,31 @@ window.addEventListener('message',event=>{
  const ballBoxes=a.manual_ball?[[a.manual_ball[0]-5,a.manual_ball[1]-5,a.manual_ball[0]+5,a.manual_ball[1]+5]]:(a.balls||[]);
  for(const box of ballBoxes){const b=document.createElement('div');b.className='ball';
  const [x1,y1,x2,y2]=box;Object.assign(b.style,{left:100*x1/a.width+'%',top:100*y1/a.height+'%',width:100*(x2-x1)/a.width+'%',height:100*(y2-y1)/a.height+'%'});
- const label=document.createElement('span');label.textContent=a.manual_ball?'Manual ball':'Model ball';b.appendChild(label);boxes.appendChild(b);}
+ const label=document.createElement('span');label.textContent=a.manual_ball?'Marked ball':'Model ball';b.appendChild(label);boxes.appendChild(b);}
+ const corners=document.getElementById('corners');corners.replaceChildren();
+ const quad=document.getElementById('quad');quad.replaceChildren();
+ const set=a.corners||[];
+ for(let i=0;i<set.length;i++){const c=document.createElement('div');c.className='corner';
+ c.style.left=100*set[i][0]/a.width+'%';c.style.top=100*set[i][1]/a.height+'%';
+ const n=document.createElement('b');n.textContent=i+1;c.appendChild(n);corners.appendChild(c);}
+ if(set.length===4){const poly=document.createElementNS('http://www.w3.org/2000/svg','polygon');
+ poly.setAttribute('points',set.map(([x,y])=>`${100*x/a.width},${100*y/a.height}`).join(' '));
+ quad.appendChild(poly);}
  const line=document.getElementById('timeline');line.replaceChildren();
  for(const s of a.segments){const b=document.createElement('button');b.type='button';b.className='segment';
- b.style.flexGrow=s.end_frame-s.start_frame+1;b.style.background=s.key[1]===0?'#3a8dff':s.key[1]===1?'#ff5a64':'#777';
- b.setAttribute('aria-label',`${s.start_s.toFixed(2)}–${s.end_s.toFixed(2)} seconds: ${s.key[0]}`);b.title=b.getAttribute('aria-label');
+ b.style.flexGrow=s.end_frame-s.start_frame+1;b.style.background=ink(s.key[1]);
+ b.setAttribute('aria-label',`${s.start_s.toFixed(2)} to ${s.end_s.toFixed(2)} seconds: ${s.key[0]}`);b.title=b.getAttribute('aria-label');
  b.onclick=()=>emit({kind:'seek',frame_index:s.start_frame});line.appendChild(b);}
  document.getElementById('position').textContent=`Frame ${a.frame_index+1} of ${a.total} · ${(a.frame_index/a.fps).toFixed(2)} seconds`;
  height();
 });
 document.getElementById('view').addEventListener('click',event=>{
- if(!currentArgs?.mark_ball)return;
+ if(!currentArgs?.mark_ball && !currentArgs?.calibrate)return;
  event.stopPropagation();
  const r=document.getElementById('frame').getBoundingClientRect();
  const x=Math.max(0,Math.min(currentArgs.width-1,(event.clientX-r.left)/r.width*currentArgs.width));
  const y=Math.max(0,Math.min(currentArgs.height-1,(event.clientY-r.top)/r.height*currentArgs.height));
- emit({kind:'ball',frame_index:currentArgs.frame_index,x,y});
+ emit({kind:currentArgs.calibrate?'corner':'ball',frame_index:currentArgs.frame_index,x,y});
 },true);
 document.getElementById('frame').onload=height;new ResizeObserver(height).observe(document.body);
 send('streamlit:componentReady',{apiVersion:1});

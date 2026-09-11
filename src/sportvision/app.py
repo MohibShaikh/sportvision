@@ -7,8 +7,11 @@ from pathlib import Path
 
 import streamlit as st
 
+from sportvision import theme
 from sportvision.review_ui import render_review
 from sportvision.video import analyze_video
+
+ISSUES = "https://github.com/MohibShaikh/sportvision/issues"
 
 
 def bgr(hex_color):
@@ -19,33 +22,40 @@ def main():
     st.set_page_config(
         page_title="SportVision · Clip review", page_icon="⚽", layout="wide"
     )
-    st.caption("SPORTVISION / CLIP REVIEW")
-    st.title("See your clip. Check the play.")
-    st.write("Track players, review team colors, and take an annotated video with you.")
-    st.caption(
-        "Runs on your computer. Your video is not sent to a video-analysis service."
+    theme.apply()
+    theme.masthead(
+        "Local edition · nothing leaves this machine",
+        "See your clip.<br><em>Check the play.</em>",
+        "Track the players, settle the team colors, and leave with an "
+        "annotated video. <b>Every frame stays on your computer.</b>",
     )
-    with st.sidebar:
-        st.subheader("A good first clip")
-        st.write(
-            "Start with 10 seconds of a steady, wide view. Keep both teams and the "
-            "ball visible. "
-        )
-        st.info(
-            "This is an experimental review tool. Check the annotations before "
-            "using the estimates. "
-        )
-        st.link_button(
-            "Help & feedback", "https://github.com/MohibShaikh/sportvision/issues"
-        )
-    st.subheader("1. Add your video")
+    theme.section(1, "Add your clip", "step one of three")
     upload = st.file_uploader(
         "Choose a clip",
         type=["mp4", "mov", "avi", "mkv"],
         help="Up to 200 MB. Start with a short clip.",
     )
     if upload is None:
-        st.info("Drop a video above to get started. No account or API key needed.")
+        theme.guide(
+            [
+                "Ten seconds is plenty for a first run. Processing takes "
+                "longer than the clip runs.",
+                "A steady, wide view works best. Keep both teams and the ball in shot.",
+                "No account, no API key, no upload. The first run downloads "
+                "model weights and then works offline.",
+            ]
+        )
+        theme.note(
+            "This is an experimental review tool. Read the annotations before "
+            "you trust the estimates."
+        )
+        theme.colophon(
+            [
+                "SportVision",
+                f'<a href="{ISSUES}">Help &amp; feedback</a>',
+                "Apache-2.0",
+            ]
+        )
         st.session_state.pop("result", None)
         return
     data = upload.getvalue()
@@ -53,11 +63,11 @@ def main():
     if st.session_state.get("clip_id") != identity:
         st.session_state.pop("result", None)
         st.session_state["clip_id"] = identity
-    with st.expander("Preview your source clip"):
+    with st.expander("Preview the source clip"):
         st.video(data)
-    st.subheader("2. Set up your review")
-    col1, col2 = st.columns(2)
-    with col1:
+    theme.section(2, "Set the teams", "step two of three")
+    wide, narrow = st.columns([3, 2])
+    with wide:
         mode = st.radio(
             "Team colors",
             ["Choose jersey colors", "Group automatically"],
@@ -67,17 +77,14 @@ def main():
             ),
         )
         left, right = st.columns(2)
-        color1 = left.color_picker(
-            "Team 1 jersey", "#FFFFFF", disabled=mode != "Choose jersey colors"
+        chosen = mode == "Choose jersey colors"
+        color1 = left.color_picker("Team 1 jersey", "#FFFFFF", disabled=not chosen)
+        color2 = right.color_picker("Team 2 jersey", "#151515", disabled=not chosen)
+        theme.note(
+            "Pick the dominant shirt color. If the grouping comes out wrong, "
+            "change it and run again."
         )
-        color2 = right.color_picker(
-            "Team 2 jersey", "#151515", disabled=mode != "Choose jersey colors"
-        )
-        st.caption(
-            "Pick the main shirt color. If the grouping looks wrong, adjust it and "
-            "run again. "
-        )
-    with col2:
+    with narrow:
         limit = st.selectbox(
             "Review length",
             [300, 900, 1800],
@@ -100,20 +107,20 @@ def main():
                 "Review the results."
             ),
         )
-        st.caption(
-            "Processing can take longer than the clip. The first run downloads "
-            "model weights. "
+        theme.note(
+            "Processing can take longer than the clip itself. The first run "
+            "downloads model weights."
         )
     settings = (identity, mode, color1, color2, limit, analysis_mode)
     if st.session_state.get("result_settings") != settings:
         st.session_state.pop("result", None)
-    invalid_colors = mode == "Choose jersey colors" and color1 == color2
+    invalid_colors = chosen and color1 == color2
     if invalid_colors:
-        st.warning("Choose different colors for the two teams.")
+        st.warning("Both teams are set to the same color. Change one of them.")
     if st.button("Analyze clip", type="primary", disabled=invalid_colors):
         st.session_state.pop("result", None)
         bar = st.progress(
-            0, text="Loading the detector… first run may take a little longer."
+            0, text="Loading the detector… the first run takes a little longer."
         )
         preview = st.empty()
         last_frame = []
@@ -126,7 +133,7 @@ def main():
             preview.image(
                 frame,
                 channels="BGR",
-                caption="Live preview · check the team assignments",
+                caption="Live preview · watch the team assignments",
                 use_container_width=True,
             )
 
@@ -140,9 +147,7 @@ def main():
                     output,
                     max_frames=limit,
                     analysis_mode=analysis_mode,
-                    team_colors=[bgr(color1), bgr(color2)]
-                    if mode == "Choose jersey colors"
-                    else None,
+                    team_colors=[bgr(color1), bgr(color2)] if chosen else None,
                     progress=progress,
                 )
                 st.session_state.result = {
@@ -172,16 +177,13 @@ def main():
             preview.empty()
             st.error(
                 "We couldn't finish this clip. Try a shorter MP4, and check your "
-                "connection if model weights haven't downloaded yet. "
+                "connection if the model weights haven't downloaded yet."
             )
             with st.expander("Error details"):
                 st.code(str(exc))
     result = st.session_state.get("result")
     if result:
-        st.subheader("3. Take your review")
-        st.caption(
-            "Overlay colors: Team 1 is blue; Team 2 is red. Gray means unassigned."
-        )
+        theme.section(3, "Read the report", "step three of three")
         render_review(result, data, upload.name)
         stats = result.get("display_stats", result["stats"])
         if "review" not in stats:
@@ -191,20 +193,47 @@ def main():
                 caption="Last reviewed frame · check the team colors",
                 use_container_width=True,
             )
-        a, b, c = st.columns(3)
-        a.metric("Frames reviewed", stats["frames_processed"])
-        b.metric(
-            "Frames where model found a ball",
-            f"{stats['frames_with_tracked_ball'] / stats['frames_processed']:.0%}",
+        if stats["possession"]:
+            inks = (theme.PALETTE["team_1"], theme.PALETTE["team_2"])
+            theme.shares(
+                [
+                    (
+                        f"Team {int(team) + 1}",
+                        share,
+                        inks[int(team) % 2],
+                    )
+                    for team, share in stats["possession"].items()
+                ]
+            )
+            theme.note(
+                "Estimated from attributed frames only. This is not official "
+                "match possession."
+            )
+        else:
+            st.warning(
+                "Not enough evidence for possession, so no percentage has been "
+                "invented. Look for missed balls or wrong team colors in the "
+                "review above."
+            )
+        ball_share = stats["frames_with_tracked_ball"] / stats["frames_processed"]
+        theme.figures(
+            [
+                (f"{ball_share:.0%}", "of frames had a ball the model could track"),
+                (stats["frames_processed"], "frames reviewed"),
+                (stats["attributed_frames"], "frames used for possession"),
+            ]
         )
-        c.metric("Frames used for possession", stats["attributed_frames"])
+        theme.note(
+            "Ball coverage is the share of frames with a detected ball. It is "
+            "not a detector accuracy score."
+        )
         manual_count = stats.get("manually_confirmed_frames", 0)
         marked_count = stats.get("manually_marked_ball_frames", 0)
         if manual_count or marked_count:
-            st.caption(
-                f"Manual evidence: {manual_count} possession confirmations, "
-                f"{marked_count} marked ball positions. Included in this report; "
-                "model detection coverage remains unchanged."
+            theme.note(
+                f"Manual evidence: {manual_count} possession confirmations and "
+                f"{marked_count} marked ball positions are counted in this "
+                "report. Model detection coverage is unchanged."
             )
         if stats.get("excluded_frames"):
             with st.expander("Why frames were excluded"):
@@ -212,50 +241,39 @@ def main():
 
                 for reason, count in stats["excluded_frames"].items():
                     st.write(f"{REASONS[reason]}: {count} frames")
-        st.caption(
-            "Ball coverage is the share of frames with a detected ball, not a "
-            "detector accuracy score. "
-        )
-        if stats["possession"]:
-            for team, share in stats["possession"].items():
-                st.write(f"Team {int(team) + 1} · estimated possession {share:.0%}")
-            st.caption(
-                "Shares cover attributed frames only. They are not official match "
-                "possession. "
-            )
-        else:
-            st.warning(
-                "Not enough evidence for possession. No percentage has been invented. "
-                "Review the video for missed balls or incorrect team colors. "
-            )
+        take, report = st.columns([2, 3])
         if result["video"] is not None:
-            st.download_button(
+            take.download_button(
                 "Download annotated video",
                 result["video"],
                 file_name="sportvision-review.mp4",
                 mime="video/mp4",
                 type="primary",
             )
-        st.download_button(
-            "Download report",
+        report.download_button(
+            "Download report (JSON)",
             json.dumps(stats, indent=2),
             file_name="sportvision-report.json",
             mime="application/json",
         )
-        st.caption(
-            "Open the downloaded MP4 in your video player. Frame and track "
-            "corrections update the report without rerunning detection."
+        theme.note(
+            "Open the MP4 in any video player. Frame and track corrections "
+            "update the report without rerunning detection."
         )
         with st.expander("Help improve SportVision"):
             st.write(
-                "Did this save you time? Tell us your sport, camera view, what failed, "
-                "and whether you'd use it on another clip. Include the report if you "
-                "want; no need to share private footage. "
+                "Did this save you time? Tell us your sport, your camera view, "
+                "what failed, and whether you'd run it on another clip. Attach "
+                "the report if you like; no need to share private footage."
             )
-            st.link_button(
-                "Share feedback",
-                "https://github.com/MohibShaikh/sportvision/issues/new",
-            )
+            st.link_button("Share feedback", f"{ISSUES}/new")
+        theme.colophon(
+            [
+                "SportVision",
+                f'<a href="{ISSUES}">Help &amp; feedback</a>',
+                "Apache-2.0",
+            ]
+        )
 
 
 if __name__ == "__main__":

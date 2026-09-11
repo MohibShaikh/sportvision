@@ -8,6 +8,7 @@ import cv2
 import streamlit as st
 from streamlit.components.v1 import declare_component
 
+from sportvision import radar, theme
 from sportvision.review import (
     REASONS,
     correct_review,
@@ -21,12 +22,44 @@ player_view = declare_component(
 )
 
 
+def _render_court(result, corners, row, index):
+    """Top-down view of the current frame, once the court corners are set."""
+    theme.subhead("Tactical view", "top-down projection")
+    sport = st.selectbox(
+        "Court", list(radar.COURTS), key="radar_sport", format_func=str.capitalize
+    )
+    if len(corners) < 4:
+        theme.note(
+            "Turn on 'Set the court corners' and click the four corners of the "
+            "playing area in this order: "
+            f"{', '.join(radar.CORNER_ORDER)}. {len(corners)} of 4 set."
+        )
+        return
+    try:
+        field = radar.calibrate(sport, corners)
+        view = radar.draw_frame(sport, field, row)
+    except (ValueError, RuntimeError, cv2.error) as exc:
+        st.error(f"Could not build the tactical view: {exc}")
+    else:
+        st.image(view, channels="BGR", use_container_width=True)
+        theme.note(
+            "Each dot is one player's feet, run through a homography. The "
+            "projection assumes the camera holds still, so a pan or a zoom "
+            "slides every dot off its real position and you have to set the "
+            "corners again. The view drops anyone outside the lines."
+        )
+    if st.button("Clear the court corners"):
+        corners.clear()
+        st.session_state["pending_review_frame"] = index
+        st.rerun()
+
+
 def render_review(result, data, filename):
     original = result["stats"].get("review")
     if not original:
         return
-    st.subheader("Review and correct")
-    st.caption(
+    theme.subhead("Review and correct", "frame by frame")
+    theme.note(
         "Corrections apply to every appearance of this track in this clip. "
         "If tracking loses a player and assigns a new ID, correct that track too."
     )
@@ -69,15 +102,21 @@ def render_review(result, data, filename):
         )
         if cls == 0
     ]
-    mark_ball = st.toggle("Mark a missed ball on this frame", key="mark_ball")
+    ball_col, court_col = st.columns(2)
+    mark_ball = ball_col.toggle("Mark a missed ball on this frame", key="mark_ball")
+    court_col.toggle("Set the court corners", key="calibrate_court")
     if mark_ball:
         st.info(
             "Click the center of the ball in the image. This edits only this frame."
         )
+    corners = result.setdefault("court_corners", [])
+    calibrate = st.session_state.get("calibrate_court", False)
     event = player_view(
         image=base64.b64encode(jpeg).decode(),
         players=players,
         mark_ball=mark_ball,
+        calibrate=calibrate,
+        corners=corners,
         manual_ball=row.get("manual_ball_xy"),
         balls=[box for box, cls in zip(row["xyxy"], row["class_id"]) if cls == 1],
         width=review["width"],
@@ -100,6 +139,11 @@ def render_review(result, data, filename):
             # A slider cannot be mutated after instantiation; apply on the next run.
             st.session_state["pending_review_frame"] = target
             st.rerun()
+        if event.get("kind") == "corner" and calibrate:
+            corners.append([event.get("x"), event.get("y")])
+            del corners[4:]
+            st.session_state["pending_review_frame"] = index
+            st.rerun()
         if event.get("kind") == "ball" and target == index and mark_ball:
             point = [event.get("x"), event.get("y")]
             try:
@@ -117,23 +161,25 @@ def render_review(result, data, filename):
             tid = event.get("track_id")
             if tid in [p["track_id"] for p in players]:
                 st.session_state["selected_track"] = tid
+    if calibrate or corners:
+        _render_court(result, corners, row, index)
     evidence = row["evidence"]
-    st.write(f"Evidence: {REASONS[evidence['reason']]}")
+    theme.subhead(REASONS[evidence["reason"]], "evidence for this frame")
     if evidence["distance_px"] is not None:
         if evidence.get("method") == "body":
-            st.caption(
+            theme.note(
                 f"Nearest track: {evidence['tracker_id']} · "
                 f"Ball distance from body: {evidence['distance_px']:.1f} px · "
                 "Within 15% of player height; overlapping candidates are uncertain."
             )
         else:
-            st.caption(
+            theme.note(
                 f"Nearest track: {evidence['tracker_id']} · "
                 f"Ball distance: {evidence['distance_px']:.1f} px · "
                 f"Attribution threshold: {review['threshold_px']:.0f} px"
             )
     if index in ball_overrides:
-        st.caption("Ball position: manually marked on this frame.")
+        theme.note("Ball position manually marked on this frame.")
         if st.button("Restore model ball position"):
             ball_overrides.pop(index)
             result["video"] = None
@@ -174,6 +220,7 @@ def render_review(result, data, filename):
         }
     )
     if tracks:
+        theme.subhead("Reassign a player", "applies to the whole track")
         if st.session_state.get("selected_track") not in tracks:
             st.session_state["selected_track"] = tracks[0]
         tid = st.selectbox("Selected player track", tracks, key="selected_track")
@@ -203,9 +250,9 @@ def render_review(result, data, filename):
         "review": review,
     }
     if overrides:
-        st.caption(
+        theme.note(
             f"{len(overrides)} track correction(s) applied. "
-            "The statistics and timeline reflect these changes."
+            "The figures and timeline reflect these changes."
         )
     if result["video"] is None:
         st.info(

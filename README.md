@@ -2,9 +2,16 @@
 
 Turn a short sports clip into an annotated video you can review and share. Choose jersey colors, follow the processing preview, and download the video and a report showing how much ball evidence was available.
 
-Listed in [Roboflow’s Community Plugins](https://inference.roboflow.com/workflows/community_plugins/) ([merged listing](https://github.com/roboflow/inference/pull/2163)).
+[![PyPI](https://img.shields.io/pypi/v/sportvision)](https://pypi.org/project/sportvision/)
+[![Python](https://img.shields.io/pypi/pyversions/sportvision)](https://pypi.org/project/sportvision/)
+[![License](https://img.shields.io/pypi/l/sportvision)](LICENSE)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/MohibShaikh/sportvision/blob/master/sportvision_colab.ipynb)
 
-[Try the browser app](#try-the-browser-app) · [Use the Workflow blocks](#roboflow-workflows-plugin) · [Report a problem](https://github.com/MohibShaikh/sportvision/issues)
+![SportVision review app](docs/media/review.png)
+
+Listed in [Roboflow's Community Plugins](https://inference.roboflow.com/workflows/community_plugins/) ([merged listing](https://github.com/roboflow/inference/pull/2163)).
+
+[Try the browser app](#try-the-browser-app) · [Tactical view](#tactical-view) · [Use the Workflow blocks](#roboflow-workflows-plugin) · [Report a problem](https://github.com/MohibShaikh/sportvision/issues)
 
 ## Try the browser app
 
@@ -22,6 +29,14 @@ Open **http://localhost:8501** if your browser does not open automatically.
 3. Select **Analyze clip**, then click a player box to choose their team or mark them **Referee / ignore**. The choice follows that track throughout the clip; **Restore automatic assignment** undoes it.
 4. Click the colored timeline or move the frame slider to inspect the evidence. Gray segments explain why no possession was attributed. If the model missed a visible ball, turn on **Mark a missed ball on this frame** and click the ball. Use **Correct possession for this frame** to confirm the team from the video. These edits are labeled manual and affect only that frame.
 5. Download the report. After a correction, select **Build corrected video** to export matching annotations without running detection again.
+
+## Tactical view
+
+![Tactical view](docs/media/radar.png)
+
+Turn on **Set the court corners** in the review section, then click the four corners of the playing area in this order: far left, far right, near right, near left. Pick the court that matches your footage and the projection appears beside the frame.
+
+Each dot is one player's feet, run through a homography. A wrong team assignment upstream puts a dot in the wrong color here, and a dropped track makes a dot vanish. The projection also assumes the camera holds still, so a pan or a zoom slides every dot off its real position and you have to set the corners again. The view drops anyone who lands outside the lines, because the detector cannot tell a substitute or an official from a player on the court.
 
 Track corrections do not reconnect identities after an ID switch. Review them where players overlap or leave the picture. The report keeps original team measurements alongside your changes.
 
@@ -90,7 +105,7 @@ Install `sportvision` and `ultralytics` to use the Python example outside this r
 - `detect_every=N` reuses old boxes for display between detections. `fresh_detections` identifies measured frames; skipped frames do not update team or possession estimates. This can miss fast ball movement.
 - `infer_size` resizes the input before inference; smaller images can lose small balls. It does not guarantee a smaller model tensor or real-time performance. Measure throughput and accuracy on your own clip and hardware.
 
-## Roboflow Workflows Plugin
+## Roboflow Workflows plugin
 
 SportVision ships as a [Roboflow Workflows](https://inference.roboflow.com/workflows/about/) plugin. Install with inference and activate:
 
@@ -108,7 +123,7 @@ This registers 4 blocks you can use in any Roboflow Workflow:
 | Distance Calculator | `sportvision/distance_calculator@v1` | Cumulative distance per tracked player. Supports `homography_matrix` for field-unit distances. |
 | Sports Detection Filter | `sportvision/sports_detection_filter@v1` | Filters COCO detections to sports classes. |
 
-### Example: Using blocks directly in Python
+### Using blocks directly in Python
 
 ```python
 import cv2
@@ -191,10 +206,6 @@ Periodic team refitting can change assignments; use `refit_every=0` for a fixed 
 }
 ```
 
-## Try it on Colab
-
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/MohibShaikh/sportvision/blob/master/sportvision_colab.ipynb)
-
 ## Architecture
 
 ```
@@ -219,7 +230,7 @@ src/sportvision/
     └── sports_detection_filter/  # COCO→sports filter block
 ```
 
-## Sports Class IDs
+## Sports class IDs
 
 | ID | Class |
 |----|-------|
