@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import time
 from pathlib import Path
 
@@ -35,7 +36,11 @@ def analyze_video(
     try:
         if not cap.isOpened():
             raise ValueError(f"Cannot open video: {source}")
-        fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+        # `or 30.0` only catches an exact zero. NaN and negatives are both
+        # truthy and reach the writer, which then fails with a misleading
+        # "cannot write video" instead of naming the real problem.
+        reported = cap.get(cv2.CAP_PROP_FPS)
+        fps = reported if math.isfinite(reported) and reported > 0 else 30.0
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         writer = cv2.VideoWriter(
@@ -91,7 +96,7 @@ def analyze_video(
             "team_colors_bgr": team_colors,
             "frames_processed": frames,
             "processing_time_s": round(elapsed, 2),
-            "processing_fps": round(frames / elapsed, 2),
+            "processing_fps": round(frames / elapsed, 2) if elapsed else 0.0,
             "frames_with_tracked_ball": ball_frames,
             "unique_player_track_ids": len(player_tracks),
             "attributed_frames": sum(pipeline._possession._counts.values()),

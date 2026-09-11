@@ -43,10 +43,12 @@ def _render_court(result, corners, row, index):
     else:
         st.image(view, channels="BGR", use_container_width=True)
         theme.note(
-            "Each dot is one player's feet, run through a homography. The "
-            "projection assumes the camera holds still, so a pan or a zoom "
-            "slides every dot off its real position and you have to set the "
-            "corners again. The view drops anyone outside the lines."
+            "Each dot is one player's feet, run through a homography. The ball "
+            "is not shown: the calibration describes the floor, and a ball "
+            "being held or in flight is not on it, so it cannot be placed. "
+            "The projection also assumes the camera holds still, so a pan or "
+            "a zoom slides every dot off its real position and you have to "
+            "set the corners again. Anyone outside the lines is dropped."
         )
     if st.button("Clear the court corners"):
         corners.clear()
@@ -140,8 +142,11 @@ def render_review(result, data, filename):
             st.session_state["pending_review_frame"] = target
             st.rerun()
         if event.get("kind") == "corner" and calibrate:
+            # A complete set means the next click starts over, so a misplaced
+            # corner can be fixed without hunting for the clear button.
+            if len(corners) >= 4:
+                corners.clear()
             corners.append([event.get("x"), event.get("y")])
-            del corners[4:]
             st.session_state["pending_review_frame"] = index
             st.rerun()
         if event.get("kind") == "ball" and target == index and mark_ball:
@@ -270,7 +275,9 @@ def render_review(result, data, filename):
                         source,
                         output,
                         review,
-                        progress=lambda done, total: bar.progress(done / total),
+                        progress=lambda done, total: bar.progress(
+                            done / total if total else 0
+                        ),
                     )
                     result["video"] = output.read_bytes()
                 st.session_state["pending_review_frame"] = index

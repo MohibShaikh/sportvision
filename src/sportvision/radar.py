@@ -6,6 +6,16 @@ the same maths the analytics modules already use.
 
 A fixed homography assumes a fixed camera. If the camera pans or zooms, the
 projection drifts and the court must be recalibrated on a later frame.
+
+A homography maps one plane, and the plane here is the floor. Only things
+touching the floor can be placed. Players' feet qualify; a ball being held or
+in flight does not, and projecting one at chest height lands it roughly 16 m
+from the player holding it.
+
+So the ball gets no position of its own. What the model does establish is
+which player is nearest it, and that player is ringed in the ball color. The
+radar says "this player has the ball", which is the claim the evidence
+supports, rather than "the ball is at this point", which it does not.
 """
 
 from __future__ import annotations
@@ -37,8 +47,17 @@ CORNER_ORDER = (
 )
 
 
+def _court(sport: str) -> FieldHomography:
+    try:
+        return COURTS[sport]()
+    except KeyError:
+        raise ValueError(
+            f"Unknown sport {sport!r}. Choose one of {', '.join(sorted(COURTS))}."
+        ) from None
+
+
 def court_size(sport: str) -> tuple[float, float]:
-    field = COURTS[sport]()
+    field = _court(sport)
     return field.field_length, field.field_width
 
 
@@ -51,14 +70,49 @@ def court_corners(sport: str) -> np.ndarray:
 
 
 def calibrate(sport: str, image_points) -> FieldHomography:
-    """Map four clicked image points onto the court, in ``CORNER_ORDER``."""
-    points = np.asarray(image_points, dtype=np.float32)
+    """Map four clicked image points onto the court, in ``CORNER_ORDER``.
+
+    Raises ValueError if the points cannot describe a court. A degenerate set,
+    four points in a line for instance, otherwise yields a homography that
+    projects every player to a plausible looking but wrong position, which is
+    worse than refusing.
+    """
+    try:
+        points = np.asarray(image_points, dtype=np.float32)
+    except (TypeError, ValueError):
+        raise ValueError("Corner points must be numbers") from None
     if points.shape != (4, 2):
         raise ValueError("Need exactly four corner points")
+    if not np.isfinite(points).all():
+        raise ValueError("Corner points must be finite numbers")
     if len(np.unique(points, axis=0)) < 4:
         raise ValueError("The four corners must be distinct points")
-    field = COURTS[sport]()
-    field.set_keypoints(points, court_corners(sport))
+    # Shoelace area. Collinear points enclose nothing.
+    x, y = points[:, 0], points[:, 1]
+    area = 0.5 * abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
+    span = max(np.ptp(x), np.ptp(y))
+    if area < max(1.0, 0.01 * span * span):
+        raise ValueError(
+            "Those four points are nearly in a line. Click the corners of the "
+            "playing area so they enclose it."
+        )
+    field = _court(sport)
+    corners = court_corners(sport)
+    field.set_keypoints(points, corners)
+    # Round-trip the inputs. cv2 returns None for an unsolvable system and a
+    # near-singular matrix for a marginal one; both fail this.
+    try:
+        check = field.transform(points)
+    except RuntimeError:
+        raise ValueError(
+            "Those four points do not define a court. Click the corners of "
+            "the playing area."
+        ) from None
+    if not np.isfinite(check).all() or np.abs(check - corners).max() > 0.5:
+        raise ValueError(
+            "Those four points do not map onto a court cleanly. Click the "
+            "corners of the playing area, in order."
+        )
     return field
 
 
@@ -119,17 +173,21 @@ def draw(
     sport: str,
     positions=(),
     teams=(),
-    ball=None,
+    possession=(),
     width_px: int = 720,
     margin: int = 26,
 ) -> np.ndarray:
     """Draw the court and put a dot at each projected position.
 
-    ``positions`` are court meters; ``teams`` are team ids aligned to them.
-    Returns a BGR image.
+    ``positions`` are court meters and ``teams`` are team ids aligned to them.
+    ``possession`` is an optional boolean per position; a true entry rings that
+    player in the ball color. Returns a BGR image.
     """
     length, width = court_size(sport)
-    usable = width_px - 2 * margin
+    margin = max(0, int(margin))
+    usable = int(width_px) - 2 * margin
+    if usable < 10:
+        raise ValueError("width_px must leave at least 10 pixels inside the margins")
     scale = usable / length
     height_px = int(round(width * scale)) + 2 * margin
     canvas = np.full((height_px, width_px, 3), _BG, dtype=np.uint8)
@@ -144,25 +202,35 @@ def draw(
     # Sized to the canvas rather than to meters. A real 0.5m player on a
     # 105m pitch comes out three pixels across, which nobody can read.
     dot = max(4, int(round(width_px / 110)))
-    for (x, y), team in zip(points[keep], [t for t, k in zip(ids, keep) if k]):
-        cv2.circle(canvas, to_px(x, y), dot, _TEAM.get(team, _OTHER), -1)
-    if ball is not None:
-        bx, by = np.asarray(ball, dtype=np.float32).reshape(2)
-        if on_court([[bx, by]], sport)[0]:
-            cv2.circle(canvas, to_px(bx, by), max(2, dot - 2), _BALL, -1)
+    holding = list(possession)
+    holding += [False] * (len(points) - len(holding))
+    for (x, y), team, has_ball in zip(
+        points[keep],
+        [t for t, k in zip(ids, keep) if k],
+        [h for h, k in zip(holding, keep) if k],
+    ):
+        center = to_px(x, y)
+        cv2.circle(canvas, center, dot, _TEAM.get(team, _OTHER), -1)
+        if has_ball:
+            cv2.circle(canvas, center, dot + 4, _BALL, 2)
     return canvas
 
 
 def draw_frame(sport: str, field: FieldHomography, row: dict, **kwargs) -> np.ndarray:
-    """Radar for one reviewed frame record."""
+    """Radar for one reviewed frame record.
+
+    The player holding the ball is ringed. The ball itself gets no dot, see
+    the module docstring.
+    """
     boxes = np.asarray(row["xyxy"], dtype=np.float32).reshape(-1, 4)
     classes = np.asarray(row["class_id"])
     teams = np.asarray(row["team_id"])
+    tracks = np.asarray(row.get("tracker_id", [-1] * len(boxes)))
     players = classes == 0
     positions = project(field, boxes[players]) if players.any() else ()
-    ball = None
-    if "manual_ball_xy" in row:
-        ball = field.transform(np.asarray([row["manual_ball_xy"]], dtype=np.float32))[0]
-    elif (classes == 1).any():
-        ball = project(field, boxes[classes == 1])[0]
-    return draw(sport, positions, teams[players], ball=ball, **kwargs)
+    evidence = row.get("evidence") or {}
+    holder = evidence.get("tracker_id") if evidence.get("team_id") is not None else None
+    possession = (
+        [tid == holder for tid in tracks[players]] if holder is not None else []
+    )
+    return draw(sport, positions, teams[players], possession=possession, **kwargs)

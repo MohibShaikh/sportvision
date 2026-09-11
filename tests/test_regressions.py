@@ -60,7 +60,9 @@ def test_unknown_team_does_not_pollute_possession():
 
 
 def test_pipeline_handles_players_disappearing_and_skipped_frames():
-    pipeline = SportVisionPipeline(detect_every=2)
+    # fit_min_samples=2 restores the old fit-immediately behaviour, which this
+    # test needs so that teams are assigned on the very first frame.
+    pipeline = SportVisionPipeline(detect_every=2, fit_min_samples=2)
     frame = np.zeros((100, 200, 3), np.uint8)
     frame[:, :100] = (0, 0, 255)
     frame[:, 100:] = (255, 0, 0)
@@ -138,3 +140,65 @@ def test_distance_requires_tracking_instead_of_fabricating_zero():
     dets = sv.Detections(xyxy=np.array([[0, 0, 20, 20]], float))
     with pytest.raises(ValueError, match="persistent tracker_id"):
         DistanceCalculatorBlockV1().run(dets)
+
+
+def _two_team_frame():
+    frame = np.zeros((100, 200, 3), np.uint8)
+    frame[:, :100] = (0, 0, 255)
+    frame[:, 100:] = (255, 0, 0)
+    tracked = {
+        "xyxy": np.array([[0, 0, 80, 80], [110, 0, 190, 80]]),
+        "class_id": np.array([0, 0]),
+        "confidence": np.ones(2),
+        "tracker_id": np.arange(2),
+    }
+    return frame, tracked
+
+
+def test_teams_are_unassigned_until_the_sample_is_broad_enough():
+    """Fitting on the first frame that holds two players scored 56% against
+    explicit jersey colours on the sample clip. Waiting for a wider sample
+    scored 92%. Unassigned is the honest answer until then."""
+    frame, tracked = _two_team_frame()
+    pipeline = SportVisionPipeline(fit_min_samples=8, fit_max_frames=1000)
+    pipeline._detector.detect = MagicMock(return_value=tracked)
+    pipeline._tracker.update = lambda detections: detections
+
+    for _ in range(3):
+        result = pipeline.process_frame(frame)
+        assert set(result["detections"]["team_id"]) == {-1}
+    assert not pipeline._team_classifier.is_fitted
+
+    # The fourth frame brings the buffer to eight crops.
+    result = pipeline.process_frame(frame)
+    assert pipeline._team_classifier.is_fitted
+    assert set(result["detections"]["team_id"]) == {0, 1}
+
+
+def test_the_frame_cap_fits_even_when_players_are_scarce():
+    frame, tracked = _two_team_frame()
+    pipeline = SportVisionPipeline(fit_min_samples=1000, fit_max_frames=3)
+    pipeline._detector.detect = MagicMock(return_value=tracked)
+    pipeline._tracker.update = lambda detections: detections
+    for _ in range(3):
+        pipeline.process_frame(frame)
+    assert not pipeline._team_classifier.is_fitted
+    pipeline.process_frame(frame)
+    assert pipeline._team_classifier.is_fitted
+
+
+def test_explicit_jersey_colors_skip_the_warm_up_entirely():
+    frame, tracked = _two_team_frame()
+    pipeline = SportVisionPipeline()
+    pipeline.set_team_colors([(0, 0, 255), (255, 0, 0)])
+    pipeline._detector.detect = MagicMock(return_value=tracked)
+    pipeline._tracker.update = lambda detections: detections
+    result = pipeline.process_frame(frame)
+    assert set(result["detections"]["team_id"]) == {0, 1}
+
+
+def test_fit_settings_are_validated():
+    with pytest.raises(ValueError, match="fit_min_samples"):
+        SportVisionPipeline(fit_min_samples=1, n_teams=2)
+    with pytest.raises(ValueError, match="fit_max_frames"):
+        SportVisionPipeline(fit_max_frames=0)

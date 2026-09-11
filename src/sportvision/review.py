@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections import Counter
 from copy import deepcopy
 
@@ -215,11 +216,19 @@ def timeline_segments(review: dict) -> list[dict]:
             )
         else:
             segments[-1]["end_frame"] = row["frame_index"]
+    # A review built elsewhere can carry a zero or broken frame rate; the
+    # timeline is cosmetic, so fall back rather than refuse to draw it.
+    fps = review.get("fps")
+    fps = (
+        fps
+        if isinstance(fps, (int, float)) and math.isfinite(fps) and fps > 0
+        else 30.0
+    )
     return [
         {
             **segment,
-            "start_s": segment["start_frame"] / review["fps"],
-            "end_s": (segment["end_frame"] + 1) / review["fps"],
+            "start_s": segment["start_frame"] / fps,
+            "end_s": (segment["end_frame"] + 1) / fps,
         }
         for segment in segments
     ]

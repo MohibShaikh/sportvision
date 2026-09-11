@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sportvision"
-version = "0.5.0"
+version = "0.5.1"
 description = "Python building blocks for sports video analysis"
 readme = "README.md"
 license = "Apache-2.0"

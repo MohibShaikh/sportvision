@@ -38,6 +38,10 @@ Turn on **Set the court corners** in the review section, then click the four cor
 
 Each dot is one player's feet, run through a homography. A wrong team assignment upstream puts a dot in the wrong color here, and a dropped track makes a dot vanish. The projection also assumes the camera holds still, so a pan or a zoom slides every dot off its real position and you have to set the corners again. The view drops anyone who lands outside the lines, because the detector cannot tell a substitute or an official from a player on the court.
 
+The ball is not drawn. Calibrating the four corners describes the floor, and a homography can only place things on the plane it was given. Feet are on the floor; a ball being held or in flight is not. Projecting a ball at chest height puts it about 16 metres from the player holding it, which is wider than a basketball court, so showing it would be worse than showing nothing.
+
+Automatic grouping needs to see a spread of players before it can tell the teams apart. It collects samples over the opening frames and leaves everyone unassigned until it has enough, so the start of a clip shows gray boxes and contributes no possession. Measured on the sample clip, fitting on the first frame that happened to hold two players agreed with explicit jersey colors only 56% of the time; waiting for a wider sample raised that to 92%. Choosing the jersey colors skips the wait entirely and is the better option when you know the kits.
+
 Track corrections do not reconnect identities after an ID switch. Review them where players overlap or leave the picture. The report keeps original team measurements alongside your changes.
 
 [Evaluation guide and provisional labels](docs/evaluation/README.md)

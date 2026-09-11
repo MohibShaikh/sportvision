@@ -81,8 +81,9 @@ def main():
         color1 = left.color_picker("Team 1 jersey", "#FFFFFF", disabled=not chosen)
         color2 = right.color_picker("Team 2 jersey", "#151515", disabled=not chosen)
         theme.note(
-            "Pick the dominant shirt color. If the grouping comes out wrong, "
-            "change it and run again."
+            "Pick the dominant shirt color. Automatic grouping instead watches "
+            "the opening frames before it decides, so the start of the clip "
+            "stays unassigned and contributes no possession."
         )
     with narrow:
         limit = st.selectbox(
@@ -215,7 +216,8 @@ def main():
                 "invented. Look for missed balls or wrong team colors in the "
                 "review above."
             )
-        ball_share = stats["frames_with_tracked_ball"] / stats["frames_processed"]
+        reviewed = stats["frames_processed"]
+        ball_share = stats["frames_with_tracked_ball"] / reviewed if reviewed else 0.0
         theme.figures(
             [
                 (f"{ball_share:.0%}", "of frames had a ball the model could track"),

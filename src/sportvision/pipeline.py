@@ -22,6 +22,11 @@ class SportVisionPipeline:
     possession_method: str = "center"
     confidence_threshold: float = 0.25
     ball_confidence_threshold: float | None = None
+    # Fitting on the first frame that happens to hold two players commits the
+    # whole clip to whatever those two crops looked like. Gather a sample
+    # across frames first.
+    fit_min_samples: int = 150
+    fit_max_frames: int = 150
     _detector: SportsDetector = field(default=None, init=False)
     _tracker: SportsTracker = field(default=None, init=False)
     _possession: PossessionTracker = field(default=None, init=False)
@@ -30,12 +35,18 @@ class SportVisionPipeline:
     _stats_annotator: StatsOverlayAnnotator = field(default=None, init=False)
     _tracked: dict[str, np.ndarray] | None = field(default=None, init=False)
     _frame_idx: int = field(default=0, init=False)
+    _fit_crops: list = field(default_factory=list, init=False, repr=False)
 
     def __post_init__(self):
         if self.possession_method not in ("center", "body"):
             raise ValueError("Possession method must be center or body")
         if self.detect_every < 1 or self.n_teams < 1:
             raise ValueError("detect_every and n_teams must be positive")
+        if self.fit_min_samples < self.n_teams or self.fit_max_frames < 1:
+            raise ValueError(
+                "fit_min_samples must cover every team and fit_max_frames "
+                "must be positive"
+            )
         self._detector = SportsDetector(
             model=self.model,
             device=self.device,
@@ -48,6 +59,20 @@ class SportVisionPipeline:
         self._team_classifier = TeamClassifier(n_teams=self.n_teams)
         self._team_annotator = TeamColorAnnotator()
         self._stats_annotator = StatsOverlayAnnotator()
+
+    def _maybe_fit_teams(self, crops: list[np.ndarray]) -> None:
+        """Fit once a sample is broad enough to contain more than one team.
+
+        Waiting costs the opening frames a team label, which the review shows
+        as unassigned. That is preferable to labelling the whole clip from one
+        unlucky pair of crops.
+        """
+        self._fit_crops.extend(crops)
+        enough = len(self._fit_crops) >= self.fit_min_samples
+        waited = self._frame_idx >= self.fit_max_frames
+        if enough or (waited and len(self._fit_crops) >= self.n_teams):
+            self._team_classifier.fit(self._fit_crops)
+            self._fit_crops.clear()
 
     def set_team_colors(self, colors: list[tuple[int, int, int]]) -> None:
         """Initialize teams from BGR jersey colors before processing a new clip."""
@@ -65,8 +90,8 @@ class SportVisionPipeline:
             tracked = self._tracker.update(detections)
             player_mask = tracked["class_id"] == 0
             crops = self._crops(frame, tracked["xyxy"][player_mask])
-            if not self._team_classifier.is_fitted and len(crops) >= self.n_teams:
-                self._team_classifier.fit(crops)
+            if not self._team_classifier.is_fitted:
+                self._maybe_fit_teams(crops)
             team_ids = np.full(len(tracked["xyxy"]), -1, dtype=int)
             if self._team_classifier.is_fitted:
                 team_ids[player_mask] = self._team_classifier.predict(crops)
